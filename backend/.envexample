@@ -1,0 +1,12 @@
+GITHUB_TOKEN=ghp_あなたの長〜いトークン文字列
+
+//名前を[.env]に変えてこのコメントを消し、レポジトリの所有者のgithubのトークンを貼ってください(あげます)
+
+//1. GitHubのアクセストークン（鍵）を取得する
+//Botがあなたの代わりにコメントを書き込むための「鍵」を発行します。
+//GitHubの右上のアイコン > Settings を開く。
+//左メニューの一番下 Developer settings > Personal access tokens > Tokens (classic) をクリック。
+//Generate new token (classic) をクリック（パスワードを求められる場合があります）。
+//Noteに Trap-PR-Agent-Token など適当な名前をつける。
+//Select scopes で、repo（リポジトリの全権限）にチェックを入れる。
+//一番下の Generate token をクリックし、出てきた ghp_ から始まる文字列をコピーする。（※この画面を閉じると二度と見られないので注意！）
