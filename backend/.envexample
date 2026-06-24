@@ -1,4 +1,5 @@
 GITHUB_TOKEN=ghp_あなたの長〜いトークン文字列
+GEMINI_API_KEY=ここにGeminiのAPIキーを貼る
 
 //名前を[.env]に変えてこのコメントを消し、レポジトリの所有者のgithubのトークンを貼ってください(あげます)
 
