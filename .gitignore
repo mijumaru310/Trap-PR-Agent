@@ -1,0 +1,23 @@
+# Python / Backend
+backend/venv/
+backend/__pycache__/
+backend/.env
+*.pyc
+
+# Flutter / Frontend
+frontend/.dart_tool/
+frontend/.packages
+frontend/.pub-cache/
+frontend/.pub/
+frontend/build/
+frontend/.env
+frontend/ios/Pods/
+frontend/macos/Pods/
+
+# Firebase
+*.json
+!frontend/firebase.json
+
+# OS files
+.DS_Store
+Thumbs.db
