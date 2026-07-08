@@ -77,7 +77,7 @@ class _AskAIScreenState extends State<AskAIScreen> {
         title: const Text("Ask Trap Assistant", style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
         centerTitle: true,
       ),
-
+      body: Column(
         children: [
           Expanded(
             child: ListView.builder(
