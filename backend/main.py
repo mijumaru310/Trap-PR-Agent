@@ -195,7 +195,7 @@ class AutoTrapPRRequest(BaseModel):
     """全自動罠PR生成リクエスト"""
     path: str           # ターゲットにする既存ファイルのパス（例: "main.py" や "src/auth.js"）
     language: Optional[str] = None  # プログラミング言語（省略時は拡張子から自動判定）
-    branch_name: str = "trap-challenge-branch" # 作成するブランチ名
+    branch_name: Optional[str] = None  # 作成するブランチ名（省略時は自動生成）
 
 class AutoTrapPRResponse(BaseModel):
     """フロントエンドや記録用に返すレスポンス"""
@@ -250,7 +250,7 @@ def _fact_check_trap_code(trap_code: str, trap_explanation: str, language: str) 
 
 
 @app.post("/api/v1/agent/auto-trap-pr/{owner}/{repo}", response_model=AutoTrapPRResponse)
-def auto_trap_pr(owner: str, repo: str, req: AutoTrapPRRequest, background_tasks: BackgroundTasks):
+def auto_trap_pr(owner: str, repo: str, req: AutoTrapPRRequest):
     """
     【コア機能】GitHubからコードを自動取得し、Geminiで罠を生成させ、自動でPRを作成する
     言語自動判定・ファクトチェック・自動コメント監視機能付き
@@ -356,8 +356,14 @@ def auto_trap_pr(owner: str, repo: str, req: AutoTrapPRRequest, background_tasks
         default_branch = repository.default_branch
         base_ref = repository.get_branch(default_branch)
         
-        # 新しいブランチを作成 (既に同名ブランチがある場合はエラーになるため注意)
-        repository.create_git_ref(ref=f"refs/heads/{req.branch_name}", sha=base_ref.commit.sha)
+        # ブランチ名を自動生成（タイムスタンプで一意にする）
+        if req.branch_name:
+            branch_name = req.branch_name
+        else:
+            timestamp = datetime.utcnow().strftime("%Y%m%d-%H%M%S")
+            branch_name = f"trap-challenge-{timestamp}"
+        
+        repository.create_git_ref(ref=f"refs/heads/{branch_name}", sha=base_ref.commit.sha)
         
         # 既存ファイルをAIが作った `trap_code` で上書き更新する
         repository.update_file(
@@ -365,7 +371,7 @@ def auto_trap_pr(owner: str, repo: str, req: AutoTrapPRRequest, background_tasks
             message=f"Feat: Add proposed feature for {contents.name}",
             content=ai_data["trap_code"],
             sha=contents.sha, # 上書きには既存ファイルのSHAが必要
-            branch=req.branch_name
+            branch=branch_name
         )
         
         # GitHub上でPRを作成（答えを含めない）
@@ -383,7 +389,7 @@ def auto_trap_pr(owner: str, repo: str, req: AutoTrapPRRequest, background_tasks
         pr = repository.create_pull(
             title=pr_title,
             body=pr_body,
-            head=req.branch_name,
+            head=branch_name,
             base=default_branch
         )
 
@@ -414,9 +420,15 @@ def auto_trap_pr(owner: str, repo: str, req: AutoTrapPRRequest, background_tasks
         db.collection("traps").document(doc_id).set(trap_data)
 
         # ----------------------------------------------------
-        # STEP 5: バックグラウンドでコメント監視を開始
+        # STEP 5: バックグラウンドでコメント監視を開始（専用スレッド）
         # ----------------------------------------------------
-        background_tasks.add_task(_poll_for_comments, owner, repo, pr.number)
+        watcher_thread = threading.Thread(
+            target=_poll_for_comments,
+            args=(owner, repo, pr.number),
+            daemon=True,  # メインプロセス終了時に自動停止
+        )
+        watcher_thread.start()
+        print(f"[Watcher] Started polling thread for PR #{pr.number}")
 
         # 全ての処理結果をまとめて返却
         return {
@@ -581,18 +593,21 @@ def score_review(owner: str, repo: str, pr_number: int):
 # コメント自動監視（ポーリング）
 # =============================================================================
 
-def _poll_for_comments(owner: str, repo: str, pr_number: int, interval: int = 60, max_polls: int = 60):
+def _poll_for_comments(owner: str, repo: str, pr_number: int, interval: int = 30, max_polls: int = 120):
     """
-    バックグラウンドでPRのコメントをポーリングし、新規コメントを検知したら自動で採点する。
+    バックグラウンドスレッドでPRのコメントをポーリングし、新規コメントを検知したら自動で採点する。
     interval秒ごとにチェックし、最大max_polls回（デフォルト1時間）で停止。
+    threading.Threadで実行されるため、time.sleep()がメインスレッドをブロックしない。
     """
     import time
     
     watcher_key = f"{owner}_{repo}_{pr_number}"
     active_watchers[watcher_key] = True
+    print(f"[Watcher] Polling started for {watcher_key} (interval={interval}s, max={max_polls})")
     
-    for _ in range(max_polls):
+    for poll_count in range(max_polls):
         if not active_watchers.get(watcher_key, False):
+            print(f"[Watcher] {watcher_key} - stopped by flag")
             break
             
         time.sleep(interval)
@@ -604,12 +619,14 @@ def _poll_for_comments(owner: str, repo: str, pr_number: int, interval: int = 60
             doc = doc_ref.get()
             
             if not doc.exists:
+                print(f"[Watcher] {watcher_key} - document not found, stopping")
                 break
                 
             trap_data = doc.to_dict()
             
             # すでに採点済みなら監視終了
             if trap_data.get("status") in ("solved", "failed"):
+                print(f"[Watcher] {watcher_key} - already scored, stopping")
                 break
             
             # コメントがあるか確認
@@ -634,8 +651,12 @@ def _poll_for_comments(owner: str, repo: str, pr_number: int, interval: int = 60
             
             if has_new_comments:
                 # コメントが見つかったら採点実行
-                _execute_scoring(owner, repo, pr_number)
+                print(f"[Watcher] {watcher_key} - comment detected! Starting scoring...")
+                result = _execute_scoring(owner, repo, pr_number)
+                print(f"[Watcher] {watcher_key} - scoring complete: {result}")
                 break  # 採点完了したら監視終了
+            else:
+                print(f"[Watcher] {watcher_key} - poll #{poll_count+1}, no comments yet")
                 
         except Exception as e:
             print(f"[Watcher] Error polling {watcher_key}: {e}")
@@ -643,10 +664,11 @@ def _poll_for_comments(owner: str, repo: str, pr_number: int, interval: int = 60
     
     # 監視終了
     active_watchers.pop(watcher_key, None)
+    print(f"[Watcher] {watcher_key} - polling ended")
 
 
 @app.post("/api/v1/agent/start-watcher/{owner}/{repo}/{pr_number}")
-def start_watcher(owner: str, repo: str, pr_number: int, background_tasks: BackgroundTasks):
+def start_watcher(owner: str, repo: str, pr_number: int):
     """
     指定されたPRのコメント監視を手動で開始する
     """
@@ -655,7 +677,12 @@ def start_watcher(owner: str, repo: str, pr_number: int, background_tasks: Backg
     if active_watchers.get(watcher_key, False):
         return {"status": "already_running", "message": "このPRの監視はすでに実行中です。"}
     
-    background_tasks.add_task(_poll_for_comments, owner, repo, pr_number)
+    watcher_thread = threading.Thread(
+        target=_poll_for_comments,
+        args=(owner, repo, pr_number),
+        daemon=True,
+    )
+    watcher_thread.start()
     
     return {"status": "started", "message": f"PR #{pr_number} のコメント監視を開始しました。コメントが検知されると自動で採点されます。"}
 

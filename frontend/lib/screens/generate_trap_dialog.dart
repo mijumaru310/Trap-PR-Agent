@@ -14,7 +14,6 @@ class _GenerateTrapDialogState extends ConsumerState<GenerateTrapDialog> {
   final _ownerController = TextEditingController(text: defaultOwner);
   final _repoController = TextEditingController(text: defaultRepo);
   final _pathController = TextEditingController(text: 'backend/main.py');
-  final _branchController = TextEditingController(text: 'trap-challenge-test');
 
   bool _isLoading = false;
 
@@ -23,7 +22,6 @@ class _GenerateTrapDialogState extends ConsumerState<GenerateTrapDialog> {
     _ownerController.dispose();
     _repoController.dispose();
     _pathController.dispose();
-    _branchController.dispose();
     super.dispose();
   }
 
@@ -38,13 +36,12 @@ class _GenerateTrapDialogState extends ConsumerState<GenerateTrapDialog> {
         _ownerController.text,
         _repoController.text,
         _pathController.text,
-        _branchController.text,
       );
 
       if (mounted) {
         Navigator.pop(context);
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Trap PR generated successfully!')),
+          const SnackBar(content: Text('Trap PR generated! Auto-scoring is active.')),
         );
         ref.invalidate(statsProvider);
       }
@@ -72,14 +69,13 @@ class _GenerateTrapDialogState extends ConsumerState<GenerateTrapDialog> {
           mainAxisSize: MainAxisSize.min,
           children: [
             const Text(
-              'Language is auto-detected from file extension.',
+              'Language & branch name are auto-generated.',
               style: TextStyle(color: Colors.grey, fontSize: 12),
             ),
             const SizedBox(height: 10),
             TextField(controller: _ownerController, decoration: const InputDecoration(labelText: 'Owner')),
             TextField(controller: _repoController, decoration: const InputDecoration(labelText: 'Repo')),
             TextField(controller: _pathController, decoration: const InputDecoration(labelText: 'File Path (e.g., src/main.js)')),
-            TextField(controller: _branchController, decoration: const InputDecoration(labelText: 'Branch Name')),
           ],
         ),
       ),
