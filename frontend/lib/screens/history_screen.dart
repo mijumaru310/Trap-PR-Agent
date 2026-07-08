@@ -72,20 +72,20 @@ class HistoryScreen extends ConsumerWidget {
                       ),
                     ),
                     isThreeLine: true,
-                    trailing: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          score?.toString() ?? "N/A",
-                          style: TextStyle(
-                            fontSize: 22,
-                            fontWeight: FontWeight.w800,
-                            color: score != null && score >= 80 ? const Color(0xFF10B981) : const Color(0xFF0F172A),
-                          ),
+                    trailing: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF1F5F9),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Text(
+                        score?.toString() ?? '-',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w800,
+                          color: score != null && score >= 80 ? const Color(0xFF10B981) : const Color(0xFF0F172A),
                         ),
-                        const Text("Score", style: TextStyle(fontSize: 12, color: Color(0xFF64748B), fontWeight: FontWeight.w500)),
-                      ],
+                      ),
                     ),
                   ),
                 );
