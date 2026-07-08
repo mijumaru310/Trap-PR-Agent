@@ -485,8 +485,37 @@ def auto_trap_pr(owner: str, repo: str, req: AutoTrapPRRequest, request: Request
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"全自動PR生成に失敗しました: {str(e)}")
 
+@app.get("/api/v1/github/repos/{owner}")
+def get_github_repos(owner: str, request: Request):
+    g = get_github_client(dict(request.headers))
+    try:
+        user = g.get_user(owner)
+        repos = user.get_repos(sort="updated", direction="desc")
+        repo_names = [repo.name for repo in repos[:100]]
+        return {"repos": repo_names}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to fetch repos: {str(e)}")
+
+@app.get("/api/v1/github/repos/{owner}/{repo}/files")
+def get_github_repo_files(owner: str, repo: str, request: Request):
+    g = get_github_client(dict(request.headers))
+    try:
+        gh_repo = g.get_repo(f"{owner}/{repo}")
+        branch = gh_repo.default_branch
+        tree = gh_repo.get_git_tree(branch, recursive=True)
+        excluded_exts = {".png", ".jpg", ".jpeg", ".gif", ".ico", ".svg", ".pdf", ".mp4", ".zip", ".tar", ".gz", ".pyc", ".class"}
+        files = []
+        for element in tree.tree:
+            if element.type == "blob":
+                _, ext = os.path.splitext(element.path)
+                if ext.lower() not in excluded_exts:
+                    files.append(element.path)
+        return {"files": files[:1000]}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to fetch files: {str(e)}")
+
 # =============================================================================
-# レビュー採点関連
+# Agent API (PR生成、採点)
 # =============================================================================
 
 class ReviewScoreResponse(BaseModel):

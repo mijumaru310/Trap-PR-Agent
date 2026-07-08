@@ -72,4 +72,28 @@ class ApiService {
       rethrow;
     }
   }
+
+  // Get GitHub Repos
+  Future<List<String>> getGitHubRepos(String owner) async {
+    try {
+      final response = await _dio.get('/github/repos/$owner');
+      final repos = response.data['repos'] as List<dynamic>;
+      return repos.cast<String>();
+    } catch (e) {
+      developer.log('Error fetching github repos: $e');
+      rethrow;
+    }
+  }
+
+  // Get GitHub Repo Files
+  Future<List<String>> getGitHubRepoFiles(String owner, String repo) async {
+    try {
+      final response = await _dio.get('/github/repos/$owner/$repo/files');
+      final files = response.data['files'] as List<dynamic>;
+      return files.cast<String>();
+    } catch (e) {
+      developer.log('Error fetching github repo files: $e');
+      rethrow;
+    }
+  }
 }
