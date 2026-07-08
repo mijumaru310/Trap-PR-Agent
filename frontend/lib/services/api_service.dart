@@ -2,11 +2,22 @@ import 'package:dio/dio.dart';
 import 'dart:developer' as developer;
 
 class ApiService {
-  final Dio _dio = Dio(BaseOptions(
-    baseUrl: 'http://127.0.0.1:8000/api/v1',
-    connectTimeout: const Duration(seconds: 15),
-    receiveTimeout: const Duration(seconds: 120),
-  ));
+  final Dio _dio;
+
+  ApiService({
+    required String githubToken,
+    required String aiProvider,
+    required String aiApiKey,
+  }) : _dio = Dio(BaseOptions(
+          baseUrl: 'http://127.0.0.1:8000/api/v1',
+          connectTimeout: const Duration(seconds: 15),
+          receiveTimeout: const Duration(seconds: 120),
+          headers: {
+            if (githubToken.isNotEmpty) 'x-github-token': githubToken,
+            if (aiProvider.isNotEmpty) 'x-ai-provider': aiProvider,
+            if (aiApiKey.isNotEmpty) 'x-ai-api-key': aiApiKey,
+          },
+        ));
 
   // Get User Stats
   Future<Map<String, dynamic>> getUserStats(String owner) async {

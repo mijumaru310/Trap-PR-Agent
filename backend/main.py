@@ -12,6 +12,7 @@ from google.genai import types
 import json
 import asyncio
 import threading
+from ai_service import generate_structured_response, get_ai_credentials
 
 # 既存のインポートに加えて以下を追記
 import firebase_admin
@@ -31,21 +32,11 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# GitHubクライアントの初期化
-github_token = os.getenv("GITHUB_TOKEN")
-if not github_token:
-    raise RuntimeError("GITHUB_TOKENが設定されていません。.envファイルを確認してください。")
-
-# Geminiクライアントの初期化
-gemini_api_key = os.getenv("GEMINI_API_KEY")
-if not gemini_api_key:
-    raise RuntimeError("GEMINI_API_KEYが設定されていません。.envファイルを確認してください。")
-
-# Clientは自動的に環境変数 GEMINI_API_KEY を読み込みます
-ai_client = genai.Client()
-
-auth = Auth.Token(github_token)
-g = Github(auth=auth)
+def get_github_client(request_headers: dict) -> Github:
+    token = request_headers.get("x-github-token") or os.getenv("GITHUB_TOKEN")
+    if not token:
+        raise ValueError("GITHUB_TOKENが設定されていません。アプリで設定するか.envファイルを確認してください。")
+    return Github(auth=Auth.Token(token))
 
 # Firebaseの初期化
 # backend/firebase-key.json を読み込みます
@@ -116,6 +107,10 @@ def test_github_connection(owner: str, repo: str):
     """
     try:
         # リポジトリの取得 (例: "tiangolo/fastapi")
+        provider, api_key = get_ai_credentials(dict(request.headers))
+        g = get_github_client(dict(request.headers))
+        github_token = dict(request.headers).get("x-github-token") or os.getenv("GITHUB_TOKEN")
+        
         repo_name = f"{owner}/{repo}"
         repository = g.get_repo(repo_name)
         
@@ -135,6 +130,10 @@ def get_repository_content(owner: str, repo: str, path: str = ""):
     指定したリポジトリの特定のパス（ディレクトリまたはファイル）の情報を取得する
     """
     try:
+        provider, api_key = get_ai_credentials(dict(request.headers))
+        g = get_github_client(dict(request.headers))
+        github_token = dict(request.headers).get("x-github-token") or os.getenv("GITHUB_TOKEN")
+        
         repo_name = f"{owner}/{repo}"
         repository = g.get_repo(repo_name)
         
@@ -179,6 +178,7 @@ def get_repository_content(owner: str, repo: str, path: str = ""):
 class TrapGenerationResponse(BaseModel):
     """Geminiから確実にこの構造で返してもらうためのPydanticモデル"""
     feature_proposal: str  # 新機能の提案（何を追加するか）
+    pr_title: str          # プルリクエストのタイトルとして相応しい、短くて自然な日本語のタイトル
     file_path: Optional[str] = None # 新規作成の場合のファイルパス
     perfect_code: str      # 脆弱性やバグを含まない、完璧な実装コード
     trap_code: str         # 完璧なコードをベースに、意図的な脆弱性や欠陥を仕込んだコード
@@ -210,7 +210,7 @@ class AutoTrapPRResponse(BaseModel):
     detected_language: str # 自動検出された言語
     fact_check_passed: bool # ファクトチェック結果
 
-def _fact_check_trap_code(trap_code: str, trap_explanation: str, language: str) -> dict:
+def _fact_check_trap_code(provider: str, api_key: str, trap_code: str, trap_explanation: str, language: str) -> dict:
     """
     【ファクトチェック】生成された罠コードが本当に脆弱性を含むか、
     コメントで答えを暴露していないかをAIで検証する
@@ -236,22 +236,19 @@ def _fact_check_trap_code(trap_code: str, trap_explanation: str, language: str) 
     {trap_explanation}
     """
 
-    response = ai_client.models.generate_content(
-        model='gemini-2.5-flash',
-        contents=user_prompt,
-        config=types.GenerateContentConfig(
-            system_instruction=system_instruction,
-            response_mime_type="application/json",
-            response_schema=FactCheckResponse,
-            temperature=0.1,
-            thinking_config=types.ThinkingConfig(thinking_budget=0),
-        ),
+    response_obj = generate_structured_response(
+        provider=provider,
+        api_key=api_key,
+        system_instruction=system_instruction,
+        user_prompt=user_prompt,
+        response_schema=FactCheckResponse,
+        temperature=0.1
     )
-    return json.loads(response.text)
+    return response_obj.model_dump()
 
 
 @app.post("/api/v1/agent/auto-trap-pr/{owner}/{repo}", response_model=AutoTrapPRResponse)
-def auto_trap_pr(owner: str, repo: str, req: AutoTrapPRRequest):
+def auto_trap_pr(owner: str, repo: str, req: AutoTrapPRRequest, request: Request):
     """
     【コア機能】GitHubからコードを自動取得し、Geminiで罠を生成させ、自動でPRを作成する
     言語自動判定・ファクトチェック・自動コメント監視機能付き
@@ -260,6 +257,10 @@ def auto_trap_pr(owner: str, repo: str, req: AutoTrapPRRequest):
         # ----------------------------------------------------
         # STEP 1: GitHubから既存のターゲットコードを取得（パス指定時）
         # ----------------------------------------------------
+        provider, api_key = get_ai_credentials(dict(request.headers))
+        g = get_github_client(dict(request.headers))
+        github_token = dict(request.headers).get("x-github-token") or os.getenv("GITHUB_TOKEN")
+        
         repo_name = f"{owner}/{repo}"
         repository = g.get_repo(repo_name)
         
@@ -298,9 +299,10 @@ def auto_trap_pr(owner: str, repo: str, req: AutoTrapPRRequest):
                 "プロジェクトがより便利になる『新機能』を1つ提案し、そのための新しいファイルを作成してください。\n"
                 "以下の項目を生成してください。\n"
                 "1. 追加する新機能の提案（何を追加するか）\n"
-                "2. 新規作成するファイルのパス（例: src/auth.js, utils/api.py など。file_pathに指定してください）\n"
-                "3. 脆弱性やバグを含まない、完璧な実装コード\n"
-                "4. その完璧なコードをベースに、構造的な欠陥やセキュリティ上の罠（脆弱性）を巧妙に仕込んだ『罠コード』\n"
+                "2. プルリクエストのタイトル（pr_title: 短くて自然な日本語のタイトル）\n"
+                "3. 新規作成するファイルのパス（例: src/auth.js, utils/api.py など。file_pathに指定してください）\n"
+                "4. 脆弱性やバグを含まない、完璧な実装コード\n"
+                "5. その完璧なコードをベースに、構造的な欠陥やセキュリティ上の罠（脆弱性）を巧妙に仕込んだ『罠コード』\n"
                 "罠コードは、一見すると正常に動くように見え、コードレビューをすり抜けるような巧妙なものにしてください。\n"
                 "\n"
                 "【絶対に守るべきルール】\n"
@@ -318,6 +320,7 @@ def auto_trap_pr(owner: str, repo: str, req: AutoTrapPRRequest):
                 "そして、その新機能を実現するための『問題を含まない完璧なコード』を作成してください。\n"
                 "最後に、その完璧なコードをベースに、構造的な欠陥やセキュリティ上の罠（脆弱性）を巧妙に仕込んだ『罠コード』を生成してください。\n"
                 "罠コードは、一見すると正常に動くように見え、コードレビューをすり抜けるような巧妙なものにしてください。\n"
+                "また、プルリクエストのタイトルとして相応しい、短くて自然な日本語のタイトル（pr_title）も考えてください。\n"
                 "\n"
                 "【絶対に守るべきルール】\n"
                 "- trap_code 内に罠の内容を示すコメントを一切書かないでください。\n"
@@ -328,21 +331,16 @@ def auto_trap_pr(owner: str, repo: str, req: AutoTrapPRRequest):
             )
             user_prompt = f"対象ファイル名: {target_file_name}\n言語: {detected_language}\n\n【既存のソースコード】\n```\n{target_code}\n```"
 
-        # 前のステップで作った TrapGenerationResponse モデルを流用して構造化出力を得る
-        ai_response = ai_client.models.generate_content(
-            model='gemini-2.5-flash',
-            contents=user_prompt,
-            config=types.GenerateContentConfig(
-                system_instruction=system_instruction,
-                response_mime_type="application/json",
-                response_schema=TrapGenerationResponse, # 提案、完璧コード、罠コード、解説を含むスキーマ
-                temperature=0.7,
-                thinking_config=types.ThinkingConfig(thinking_budget=0),
-            ),
+        # AIプロバイダを使用して構造化出力を得る
+        response_obj = generate_structured_response(
+            provider=provider,
+            api_key=api_key,
+            system_instruction=system_instruction,
+            user_prompt=user_prompt,
+            response_schema=TrapGenerationResponse,
+            temperature=0.7
         )
-        
-        # AIの返答をパース
-        ai_data = json.loads(ai_response.text)
+        ai_data = response_obj.model_dump()
 
         # ----------------------------------------------------
         # STEP 2.5: ファクトチェック - 罠コードが本当に脆弱性を含むか検証
@@ -351,7 +349,7 @@ def auto_trap_pr(owner: str, repo: str, req: AutoTrapPRRequest):
         max_retries = 2
         
         for attempt in range(max_retries + 1):
-            fact_check = _fact_check_trap_code(ai_data["trap_code"], ai_data["trap_explanation"], detected_language)
+            fact_check = _fact_check_trap_code(provider, api_key, ai_data["trap_code"], ai_data["trap_explanation"], detected_language)
             
             if fact_check["has_vulnerability"] and not fact_check["comments_reveal_answer"]:
                 fact_check_passed = True
@@ -366,18 +364,15 @@ def auto_trap_pr(owner: str, repo: str, req: AutoTrapPRRequest):
                     f"脆弱性が実際に存在するか: {fact_check['has_vulnerability']}\n"
                     f"上記の問題を修正して再生成してください。"
                 )
-                ai_response = ai_client.models.generate_content(
-                    model='gemini-2.5-flash',
-                    contents=user_prompt,
-                    config=types.GenerateContentConfig(
-                        system_instruction=retry_instruction,
-                        response_mime_type="application/json",
-                        response_schema=TrapGenerationResponse,
-                        temperature=0.7,
-                        thinking_config=types.ThinkingConfig(thinking_budget=0),
-                    ),
+                response_obj = generate_structured_response(
+                    provider=provider,
+                    api_key=api_key,
+                    system_instruction=retry_instruction,
+                    user_prompt=user_prompt,
+                    response_schema=TrapGenerationResponse,
+                    temperature=0.7
                 )
-                ai_data = json.loads(ai_response.text)
+                ai_data = response_obj.model_dump()
 
         # ----------------------------------------------------
         # STEP 3: 新しいブランチを作成し、罠コードで上書きしてPRを作成
@@ -413,7 +408,11 @@ def auto_trap_pr(owner: str, repo: str, req: AutoTrapPRRequest):
             )
         
         # GitHub上でPRを作成（答えを含めない）
-        pr_title = f"[Trap Challenge] {ai_data['feature_proposal'][:60]}"
+        pr_title = ai_data.get("pr_title", f"[Trap Challenge] {ai_data['feature_proposal'][:60]}")
+        # 安全のためにプレフィックスを強制
+        if not pr_title.startswith("[Trap Challenge]"):
+            pr_title = f"[Trap Challenge] {pr_title}"
+            
         pr_body = (
             f"### 🚀 AIエージェントからの新機能提案\n"
             f"{ai_data['feature_proposal']}\n\n"
@@ -462,7 +461,7 @@ def auto_trap_pr(owner: str, repo: str, req: AutoTrapPRRequest):
         # ----------------------------------------------------
         watcher_thread = threading.Thread(
             target=_poll_for_comments,
-            args=(owner, repo, pr.number),
+            args=(owner, repo, pr.number, github_token, provider, api_key),
             daemon=True,  # メインプロセス終了時に自動停止
         )
         watcher_thread.start()
@@ -496,7 +495,7 @@ class ReviewScoreResponse(BaseModel):
     score: int             # 採点スコア (0から100の間)
     feedback: str          # ユーザーへのフィードバック・解説メッセージ
 
-def _execute_scoring(owner: str, repo: str, pr_number: int) -> dict:
+def _execute_scoring(owner: str, repo: str, pr_number: int, github_token: str = None, ai_provider: str = "gemini", ai_api_key: str = None) -> dict:
     """
     採点処理の本体。Webhook・ポーリング・手動ボタンすべてから呼ばれる共通ロジック。
     """
@@ -522,6 +521,7 @@ def _execute_scoring(owner: str, repo: str, pr_number: int) -> dict:
     trap_explanation = trap_db_data["trap_explanation"]
     
     # STEP 1: GitHubからPRのコメントを取得
+    g = Github(auth=Auth.Token(github_token)) if github_token else get_github_client({})
     repo_name = f"{owner}/{repo}"
     repository = g.get_repo(repo_name)
     pull_request = repository.get_pull(pr_number)
@@ -530,6 +530,11 @@ def _execute_scoring(owner: str, repo: str, pr_number: int) -> dict:
     # ただし自動採点結果のコメントは除外する
     comments = []
     
+    try:
+        bot_user = g.get_user().login
+    except:
+        bot_user = None
+
     # 通常のPRコメントを取得
     for comment in pull_request.get_issue_comments():
         if not comment.body.startswith("## 🤖 Trap-PR Agent"):
@@ -563,19 +568,19 @@ def _execute_scoring(owner: str, repo: str, pr_number: int) -> dict:
     {user_reviews_text}
     """
 
-    ai_response = ai_client.models.generate_content(
-        model='gemini-2.5-flash',
-        contents=user_prompt,
-        config=types.GenerateContentConfig(
-            system_instruction=system_instruction,
-            response_mime_type="application/json",
-            response_schema=ReviewScoreResponse,
-            temperature=0.2, # 採点のブレを減らすため低めに設定
-            thinking_config=types.ThinkingConfig(thinking_budget=0),
-        ),
+    # フォールバック処理
+    if not ai_api_key:
+        ai_provider, ai_api_key = get_ai_credentials({})
+
+    response_obj = generate_structured_response(
+        provider=ai_provider,
+        api_key=ai_api_key,
+        system_instruction=system_instruction,
+        user_prompt=user_prompt,
+        response_schema=ReviewScoreResponse,
+        temperature=0.2
     )
-    
-    score_data = json.loads(ai_response.text)
+    score_data = response_obj.model_dump()
 
     # STEP 3: 採点結果をGitHubのPRに自動コメント投稿する
     result_emoji = "🎉 【合格】" if score_data["is_correct"] else "❌ 【不合格/未達成】"
@@ -610,7 +615,7 @@ def _execute_scoring(owner: str, repo: str, pr_number: int) -> dict:
 
 
 @app.post("/api/v1/agent/score-review/{owner}/{repo}/{pr_number}")
-def score_review(owner: str, repo: str, pr_number: int):
+def score_review(owner: str, repo: str, pr_number: int, request: Request):
     """
     指定されたPRのコメントを取得し、仕込まれた罠を指摘できているかをGeminiに採点させ、結果をPRにコメントする
     """
@@ -666,6 +671,7 @@ def _poll_for_comments(owner: str, repo: str, pr_number: int, interval: int = 30
                 break
             
             # コメントがあるか確認
+            g = Github(auth=Auth.Token(github_token)) if github_token else get_github_client({})
             repo_name = f"{owner}/{repo}"
             repository = g.get_repo(repo_name)
             pull_request = repository.get_pull(pr_number)
