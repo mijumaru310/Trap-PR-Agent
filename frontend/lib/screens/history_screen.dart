@@ -74,6 +74,7 @@ class HistoryScreen extends ConsumerWidget {
                     isThreeLine: true,
                     trailing: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
+                      mainAxisSize: MainAxisSize.min,
                       children: [
                         Text(
                           score?.toString() ?? "N/A",
