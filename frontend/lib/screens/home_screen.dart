@@ -1,12 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:url_launcher/url_launcher.dart';
 
-import 'loading_screen.dart';
 import 'ask_ai_screen.dart';
-import 'result_screen.dart';
 import 'generate_trap_dialog.dart';
 import '../providers/stats_provider.dart';
-import '../providers/api_provider.dart';
 
 class HomeScreen extends ConsumerWidget {
   const HomeScreen({super.key});
@@ -32,44 +30,80 @@ class HomeScreen extends ConsumerWidget {
           final history = data['history'] as List<dynamic>? ?? [];
           final pendingMissions = history.where((item) => item['status'] == 'pending').toList();
           final pendingMission = pendingMissions.isNotEmpty ? pendingMissions.first : null;
-          final pastMissions = history.where((item) => item['status'] != 'pending').take(3).toList();
+          final pastMissions = history.where((item) => item['status'] != 'pending').take(5).toList();
 
-          return ListView(
-            padding: const EdgeInsets.all(20),
-            children: [
-              const Text(
-                "Today's Mission",
-                style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 20),
-              if (pendingMission != null)
-                _buildPendingMissionCard(context, ref, pendingMission, data['owner'])
-              else
-                const Card(
-                  child: Padding(
-                    padding: EdgeInsets.all(20),
-                    child: Text("No pending missions. Generate a new Trap PR!"),
+          return RefreshIndicator(
+            onRefresh: () async {
+              ref.invalidate(statsProvider);
+            },
+            child: ListView(
+              padding: const EdgeInsets.all(20),
+              children: [
+                const Text(
+                  "Today's Mission",
+                  style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 20),
+                if (pendingMission != null)
+                  _buildPendingMissionCard(context, ref, pendingMission, data['owner'])
+                else
+                  const Card(
+                    child: Padding(
+                      padding: EdgeInsets.all(20),
+                      child: Text("No pending missions. Generate a new Trap PR!"),
+                    ),
                   ),
+                const SizedBox(height: 30),
+                const Text(
+                  "Past Missions",
+                  style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
                 ),
-              const SizedBox(height: 30),
-              const Text(
-                "Past Missions",
-                style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 15),
-              ...pastMissions.map((mission) => Card(
-                child: ListTile(
-                  leading: const Icon(Icons.history),
-                  title: Text("PR #${mission['pr_number']}"),
-                  subtitle: Text(mission['feature_proposal'] ?? 'N/A', maxLines: 1, overflow: TextOverflow.ellipsis),
-                  trailing: Text(mission['score']?.toString() ?? '-'),
-                ),
-              )).toList(),
-            ],
+                const SizedBox(height: 15),
+                ...pastMissions.map((mission) {
+                  final score = mission['score'];
+                  final status = mission['status'];
+                  return Card(
+                    child: ListTile(
+                      leading: Icon(
+                        status == 'solved' ? Icons.check_circle : Icons.cancel,
+                        color: status == 'solved' ? Colors.green : Colors.red,
+                      ),
+                      title: Text("PR #${mission['pr_number']}"),
+                      subtitle: Text(mission['feature_proposal'] ?? 'N/A', maxLines: 1, overflow: TextOverflow.ellipsis),
+                      trailing: Text(
+                        score?.toString() ?? '-',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: score != null && score >= 80 ? Colors.green : Colors.red,
+                        ),
+                      ),
+                      onTap: () {
+                        if (mission['pr_url'] != null) {
+                          launchUrl(Uri.parse(mission['pr_url']));
+                        }
+                      },
+                    ),
+                  );
+                }),
+              ],
+            ),
           );
         },
         loading: () => const Center(child: CircularProgressIndicator()),
-        error: (err, stack) => Center(child: Text('Error: $err')),
+        error: (err, stack) => Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Text('Error: $err'),
+              const SizedBox(height: 16),
+              ElevatedButton(
+                onPressed: () => ref.invalidate(statsProvider),
+                child: const Text('Retry'),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -92,7 +126,9 @@ class HomeScreen extends ConsumerWidget {
             const SizedBox(height: 8),
             Text(
               mission['feature_proposal'] ?? 'New Feature',
-              style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
             ),
             const SizedBox(height: 15),
             Row(
@@ -105,9 +141,9 @@ class HomeScreen extends ConsumerWidget {
             const SizedBox(height: 10),
             const Row(
               children: [
-                Icon(Icons.workspace_premium),
+                Icon(Icons.auto_awesome, color: Colors.amber),
                 SizedBox(width: 8),
-                Text("Reward : +120 XP"),
+                Text("Auto-scoring enabled", style: TextStyle(color: Colors.green)),
               ],
             ),
             const SizedBox(height: 25),
@@ -117,40 +153,20 @@ class HomeScreen extends ConsumerWidget {
                 icon: const Icon(Icons.open_in_new),
                 label: const Text("Open GitHub"),
                 onPressed: () {
-                  // TODO: launchUrl(Uri.parse(mission['pr_url']))
+                  if (mission['pr_url'] != null) {
+                    launchUrl(Uri.parse(mission['pr_url']));
+                  }
                 },
               ),
             ),
             const SizedBox(height: 12),
             SizedBox(
               width: double.infinity,
-              child: ElevatedButton.icon(
-                icon: const Icon(Icons.verified),
-                label: const Text("Score My Review"),
-                onPressed: () async {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (_) => const LoadingScreen()),
-                  );
-                  
-                  try {
-                    final api = ref.read(apiServiceProvider);
-                    final result = await api.scoreReview(owner, mission['repo'], mission['pr_number']);
-                    
-                    if (context.mounted) {
-                      Navigator.pop(context); // pop loading
-                      ref.invalidate(statsProvider);
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(builder: (_) => ResultScreen(result: result)),
-                      );
-                    }
-                  } catch (e) {
-                    if (context.mounted) {
-                      Navigator.pop(context); // pop loading
-                      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
-                    }
-                  }
+              child: OutlinedButton.icon(
+                icon: const Icon(Icons.refresh),
+                label: const Text("Refresh Status"),
+                onPressed: () {
+                  ref.invalidate(statsProvider);
                 },
               ),
             ),

@@ -14,7 +14,6 @@ class _GenerateTrapDialogState extends ConsumerState<GenerateTrapDialog> {
   final _ownerController = TextEditingController(text: defaultOwner);
   final _repoController = TextEditingController(text: defaultRepo);
   final _pathController = TextEditingController(text: 'backend/main.py');
-  final _languageController = TextEditingController(text: 'python');
   final _branchController = TextEditingController(text: 'trap-challenge-test');
 
   bool _isLoading = false;
@@ -24,7 +23,6 @@ class _GenerateTrapDialogState extends ConsumerState<GenerateTrapDialog> {
     _ownerController.dispose();
     _repoController.dispose();
     _pathController.dispose();
-    _languageController.dispose();
     _branchController.dispose();
     super.dispose();
   }
@@ -36,20 +34,18 @@ class _GenerateTrapDialogState extends ConsumerState<GenerateTrapDialog> {
 
     try {
       final apiService = ref.read(apiServiceProvider);
-      final result = await apiService.generateAutoTrapPR(
+      await apiService.generateAutoTrapPR(
         _ownerController.text,
         _repoController.text,
         _pathController.text,
-        _languageController.text,
         _branchController.text,
       );
 
       if (mounted) {
         Navigator.pop(context);
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Success: ${result["message"]}')),
+          const SnackBar(content: Text('Trap PR generated successfully!')),
         );
-        // Refresh stats
         ref.invalidate(statsProvider);
       }
     } catch (e) {
@@ -75,10 +71,14 @@ class _GenerateTrapDialogState extends ConsumerState<GenerateTrapDialog> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
+            const Text(
+              'Language is auto-detected from file extension.',
+              style: TextStyle(color: Colors.grey, fontSize: 12),
+            ),
+            const SizedBox(height: 10),
             TextField(controller: _ownerController, decoration: const InputDecoration(labelText: 'Owner')),
             TextField(controller: _repoController, decoration: const InputDecoration(labelText: 'Repo')),
             TextField(controller: _pathController, decoration: const InputDecoration(labelText: 'File Path (e.g., src/main.js)')),
-            TextField(controller: _languageController, decoration: const InputDecoration(labelText: 'Language (e.g., javascript)')),
             TextField(controller: _branchController, decoration: const InputDecoration(labelText: 'Branch Name')),
           ],
         ),
@@ -90,7 +90,9 @@ class _GenerateTrapDialogState extends ConsumerState<GenerateTrapDialog> {
         ),
         ElevatedButton(
           onPressed: _isLoading ? null : _generate,
-          child: _isLoading ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2)) : const Text('Generate'),
+          child: _isLoading
+              ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
+              : const Text('Generate'),
         ),
       ],
     );

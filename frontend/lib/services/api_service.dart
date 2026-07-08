@@ -1,10 +1,11 @@
 import 'package:dio/dio.dart';
+import 'dart:developer' as developer;
 
 class ApiService {
   final Dio _dio = Dio(BaseOptions(
     baseUrl: 'http://127.0.0.1:8000/api/v1',
-    connectTimeout: const Duration(seconds: 10),
-    receiveTimeout: const Duration(seconds: 30),
+    connectTimeout: const Duration(seconds: 15),
+    receiveTimeout: const Duration(seconds: 120),
   ));
 
   // Get User Stats
@@ -13,26 +14,25 @@ class ApiService {
       final response = await _dio.get('/records/stats/$owner');
       return response.data;
     } catch (e) {
-      print('Error fetching user stats: $e');
+      developer.log('Error fetching user stats: $e');
       rethrow;
     }
   }
 
-  // Generate Trap PR (Auto)
+  // Generate Trap PR (Auto) - language is now optional, auto-detected by backend
   Future<Map<String, dynamic>> generateAutoTrapPR(
-      String owner, String repo, String path, String language, String branchName) async {
+      String owner, String repo, String path, String branchName) async {
     try {
       final response = await _dio.post(
         '/agent/auto-trap-pr/$owner/$repo',
         data: {
           'path': path,
-          'language': language,
           'branch_name': branchName,
         },
       );
       return response.data;
     } catch (e) {
-      print('Error generating auto trap PR: $e');
+      developer.log('Error generating auto trap PR: $e');
       rethrow;
     }
   }
@@ -44,7 +44,18 @@ class ApiService {
       final response = await _dio.post('/agent/score-review/$owner/$repo/$prNumber');
       return response.data;
     } catch (e) {
-      print('Error scoring review: $e');
+      developer.log('Error scoring review: $e');
+      rethrow;
+    }
+  }
+
+  // Start comment watcher (polling) for a specific PR
+  Future<Map<String, dynamic>> startWatcher(String owner, String repo, int prNumber) async {
+    try {
+      final response = await _dio.post('/agent/start-watcher/$owner/$repo/$prNumber');
+      return response.data;
+    } catch (e) {
+      developer.log('Error starting watcher: $e');
       rethrow;
     }
   }

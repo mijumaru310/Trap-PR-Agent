@@ -57,7 +57,7 @@ class HistoryScreen extends ConsumerWidget {
                     ),
                   ),
                 );
-              }).toList(),
+              }),
             ],
           );
         },
