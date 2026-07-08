@@ -173,6 +173,38 @@ class HomeScreen extends ConsumerWidget {
             const SizedBox(height: 12),
             SizedBox(
               width: double.infinity,
+              child: ElevatedButton.icon(
+                icon: const Icon(Icons.grading),
+                label: const Text("Score My Review (Manual)"),
+                onPressed: () async {
+                  try {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Scoring review...')),
+                    );
+                    await ref.read(apiServiceProvider).scoreReview(
+                          owner,
+                          mission['repo'],
+                          mission['pr_number'],
+                        );
+                    ref.invalidate(statsProvider);
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Scoring completed!')),
+                      );
+                    }
+                  } catch (e) {
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text('Error: $e')),
+                      );
+                    }
+                  }
+                },
+              ),
+            ),
+            const SizedBox(height: 12),
+            SizedBox(
+              width: double.infinity,
               child: OutlinedButton.icon(
                 icon: const Icon(Icons.smart_toy),
                 label: const Text("Ask AI"),

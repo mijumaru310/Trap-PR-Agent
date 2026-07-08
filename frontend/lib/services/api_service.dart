@@ -23,11 +23,14 @@ class ApiService {
   Future<Map<String, dynamic>> generateAutoTrapPR(
       String owner, String repo, String path) async {
     try {
+      final data = <String, dynamic>{};
+      if (path.isNotEmpty) {
+        data['path'] = path;
+      }
+      
       final response = await _dio.post(
         '/agent/auto-trap-pr/$owner/$repo',
-        data: {
-          'path': path,
-        },
+        data: data,
       );
       return response.data;
     } catch (e) {

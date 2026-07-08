@@ -179,6 +179,7 @@ def get_repository_content(owner: str, repo: str, path: str = ""):
 class TrapGenerationResponse(BaseModel):
     """Geminiから確実にこの構造で返してもらうためのPydanticモデル"""
     feature_proposal: str  # 新機能の提案（何を追加するか）
+    file_path: Optional[str] = None # 新規作成の場合のファイルパス
     perfect_code: str      # 脆弱性やバグを含まない、完璧な実装コード
     trap_code: str         # 完璧なコードをベースに、意図的な脆弱性や欠陥を仕込んだコード
     trap_explanation: str  # 【解説用】どんな罠（脆弱性）をどこに仕込んだか（ユーザーには隠す正解データ）
@@ -193,7 +194,7 @@ class FactCheckResponse(BaseModel):
 
 class AutoTrapPRRequest(BaseModel):
     """全自動罠PR生成リクエスト"""
-    path: str           # ターゲットにする既存ファイルのパス（例: "main.py" や "src/auth.js"）
+    path: Optional[str] = None # ターゲットにする既存ファイルのパス。省略時はAIが新規ファイルを作成する
     language: Optional[str] = None  # プログラミング言語（省略時は拡張子から自動判定）
     branch_name: Optional[str] = None  # 作成するブランチ名（省略時は自動生成）
 
@@ -257,47 +258,75 @@ def auto_trap_pr(owner: str, repo: str, req: AutoTrapPRRequest):
     """
     try:
         # ----------------------------------------------------
-        # STEP 1: GitHubから既存のターゲットコードを取得
+        # STEP 1: GitHubから既存のターゲットコードを取得（パス指定時）
         # ----------------------------------------------------
         repo_name = f"{owner}/{repo}"
         repository = g.get_repo(repo_name)
         
-        # 指定されたパスのファイルコンテンツを取得
-        contents = repository.get_contents(req.path)
-        if isinstance(contents, list):
-            raise HTTPException(status_code=400, detail="指定されたパスはディレクトリです。ファイルを指定してください。")
-            
-        target_code = contents.decoded_content.decode("utf-8")
+        is_new_file = False
+        target_code = ""
+        target_file_name = ""
+        contents = None
+        
+        if req.path:
+            contents = repository.get_contents(req.path)
+            if isinstance(contents, list):
+                raise HTTPException(status_code=400, detail="指定されたパスはディレクトリです。ファイルを指定してください。")
+            target_code = contents.decoded_content.decode("utf-8")
+            target_file_name = contents.name
+        else:
+            is_new_file = True
 
         # ----------------------------------------------------
         # STEP 1.5: 言語自動判定
         # ----------------------------------------------------
         if req.language:
             detected_language = req.language
-        else:
+        elif req.path:
             detected_language = detect_language(req.path)
             if detected_language == "unknown":
                 detected_language = "unknown (auto-detect failed, treating as generic code)"
+        else:
+            detected_language = "任意 (AIが決定)"
 
         # ----------------------------------------------------
         # STEP 2: Gemini APIを呼び出して、罠コードを生成
         # ----------------------------------------------------
-        system_instruction = (
-            "あなたは悪意ある開発者を演じるAIエージェントであり、同時に優秀なプログラミング講師です。\n"
-            "提出された既存のソースコードを読み込み、プロジェクトがより便利になる『新機能』を1つ提案してください。\n"
-            "そして、その新機能を実現するための『問題を含まない完璧なコード』を作成してください。\n"
-            "最後に、その完璧なコードをベースに、構造的な欠陥やセキュリティ上の罠（脆弱性）を巧妙に仕込んだ『罠コード』を生成してください。\n"
-            "罠コードは、一見すると正常に動くように見え、コードレビューをすり抜けるような巧妙なものにしてください。\n"
-            "\n"
-            "【絶対に守るべきルール】\n"
-            "- trap_code 内に罠の内容を示すコメントを一切書かないでください。\n"
-            "- 「ここが脆弱性です」「意図的にXXしています」のようなコメントは厳禁です。\n"
-            "- コメントは通常の開発者が書くような自然なものだけにしてください。\n"
-            "- trap_explanation にのみ罠の詳細を記述してください。\n"
-            "出力は必ず指定されたJSONスキーマに従ってください。"
-        )
-
-        user_prompt = f"対象ファイル名: {contents.name}\n言語: {detected_language}\n\n【既存のソースコード】\n```\n{target_code}\n```"
+        if is_new_file:
+            system_instruction = (
+                "あなたは悪意ある開発者を演じるAIエージェントであり、同時に優秀なプログラミング講師です。\n"
+                "プロジェクトがより便利になる『新機能』を1つ提案し、そのための新しいファイルを作成してください。\n"
+                "以下の項目を生成してください。\n"
+                "1. 追加する新機能の提案（何を追加するか）\n"
+                "2. 新規作成するファイルのパス（例: src/auth.js, utils/api.py など。file_pathに指定してください）\n"
+                "3. 脆弱性やバグを含まない、完璧な実装コード\n"
+                "4. その完璧なコードをベースに、構造的な欠陥やセキュリティ上の罠（脆弱性）を巧妙に仕込んだ『罠コード』\n"
+                "罠コードは、一見すると正常に動くように見え、コードレビューをすり抜けるような巧妙なものにしてください。\n"
+                "\n"
+                "【絶対に守るべきルール】\n"
+                "- trap_code 内に罠の内容を示すコメントを一切書かないでください。\n"
+                "- 「ここが脆弱性です」「意図的にXXしています」のようなコメントは厳禁です。\n"
+                "- コメントは通常の開発者が書くような自然なものだけにしてください。\n"
+                "- trap_explanation にのみ罠の詳細を記述してください。\n"
+                "出力は必ず指定されたJSONスキーマに従ってください。"
+            )
+            user_prompt = "新しい機能のためのファイルと罠コードを生成してください。"
+        else:
+            system_instruction = (
+                "あなたは悪意ある開発者を演じるAIエージェントであり、同時に優秀なプログラミング講師です。\n"
+                "提出された既存のソースコードを読み込み、プロジェクトがより便利になる『新機能』を1つ提案してください。\n"
+                "そして、その新機能を実現するための『問題を含まない完璧なコード』を作成してください。\n"
+                "最後に、その完璧なコードをベースに、構造的な欠陥やセキュリティ上の罠（脆弱性）を巧妙に仕込んだ『罠コード』を生成してください。\n"
+                "罠コードは、一見すると正常に動くように見え、コードレビューをすり抜けるような巧妙なものにしてください。\n"
+                "\n"
+                "【絶対に守るべきルール】\n"
+                "- trap_code 内に罠の内容を示すコメントを一切書かないでください。\n"
+                "- 「ここが脆弱性です」「意図的にXXしています」のようなコメントは厳禁です。\n"
+                "- コメントは通常の開発者が書くような自然なものだけにしてください。\n"
+                "- trap_explanation にのみ罠の詳細を記述してください。\n"
+                "出力は必ず指定されたJSONスキーマに従ってください。"
+            )
+            user_prompt = f"対象ファイル名: {target_file_name}\n言語: {detected_language}\n\n【既存のソースコード】\n```\n{target_code}\n```"
 
         # 前のステップで作った TrapGenerationResponse モデルを流用して構造化出力を得る
         ai_response = ai_client.models.generate_content(
@@ -365,14 +394,23 @@ def auto_trap_pr(owner: str, repo: str, req: AutoTrapPRRequest):
         
         repository.create_git_ref(ref=f"refs/heads/{branch_name}", sha=base_ref.commit.sha)
         
-        # 既存ファイルをAIが作った `trap_code` で上書き更新する
-        repository.update_file(
-            path=req.path,
-            message=f"Feat: Add proposed feature for {contents.name}",
-            content=ai_data["trap_code"],
-            sha=contents.sha, # 上書きには既存ファイルのSHAが必要
-            branch=branch_name
-        )
+        # 罠コードをコミット
+        if is_new_file:
+            ai_file_path = ai_data.get("file_path") or "src/new_feature.py"
+            repository.create_file(
+                path=ai_file_path,
+                message=f"Feat: Add proposed feature",
+                content=ai_data["trap_code"],
+                branch=branch_name
+            )
+        else:
+            repository.update_file(
+                path=req.path,
+                message=f"Feat: Add proposed feature for {target_file_name}",
+                content=ai_data["trap_code"],
+                sha=contents.sha, # 上書きには既存ファイルのSHAが必要
+                branch=branch_name
+            )
         
         # GitHub上でPRを作成（答えを含めない）
         pr_title = f"[Trap Challenge] {ai_data['feature_proposal'][:60]}"

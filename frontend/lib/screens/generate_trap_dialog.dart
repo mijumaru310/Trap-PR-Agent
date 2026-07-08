@@ -13,10 +13,10 @@ class GenerateTrapDialog extends ConsumerStatefulWidget {
 class _GenerateTrapDialogState extends ConsumerState<GenerateTrapDialog> {
   final _ownerController = TextEditingController(text: defaultOwner);
   final _repoController = TextEditingController(text: defaultRepo);
-  final _pathController = TextEditingController(text: 'backend/main.py');
+  final _pathController = TextEditingController();
 
   bool _isLoading = false;
-
+  
   @override
   void dispose() {
     _ownerController.dispose();
@@ -35,7 +35,7 @@ class _GenerateTrapDialogState extends ConsumerState<GenerateTrapDialog> {
       await apiService.generateAutoTrapPR(
         _ownerController.text,
         _repoController.text,
-        _pathController.text,
+        _pathController.text.trim(),
       );
 
       if (mounted) {
@@ -75,7 +75,7 @@ class _GenerateTrapDialogState extends ConsumerState<GenerateTrapDialog> {
             const SizedBox(height: 10),
             TextField(controller: _ownerController, decoration: const InputDecoration(labelText: 'Owner')),
             TextField(controller: _repoController, decoration: const InputDecoration(labelText: 'Repo')),
-            TextField(controller: _pathController, decoration: const InputDecoration(labelText: 'File Path (e.g., src/main.js)')),
+            TextField(controller: _pathController, decoration: const InputDecoration(labelText: 'File Path (Optional)')),
           ],
         ),
       ),
