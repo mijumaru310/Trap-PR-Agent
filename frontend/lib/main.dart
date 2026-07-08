@@ -1,11 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'screens/home_screen.dart';
 import 'screens/history_screen.dart';
 import 'screens/profile_screen.dart';
 
 void main() {
-  runApp(const TrapPRAgentApp());
+  runApp(const ProviderScope(child: TrapPRAgentApp()));
 }
 
 class TrapPRAgentApp extends StatelessWidget {

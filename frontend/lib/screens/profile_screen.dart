@@ -1,140 +1,115 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../providers/stats_provider.dart';
 
-class ProfileScreen extends StatelessWidget {
+class ProfileScreen extends ConsumerWidget {
   const ProfileScreen({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final statsAsyncValue = ref.watch(statsProvider);
+
     return Scaffold(
       appBar: AppBar(title: const Text("Profile"), centerTitle: true),
-      body: ListView(
-        padding: const EdgeInsets.all(20),
-        children: [
-          const CircleAvatar(radius: 45, child: Icon(Icons.person, size: 50)),
+      body: statsAsyncValue.when(
+        data: (data) {
+          final int totalGenerated = data['total_generated_prs'] ?? 0;
+          final int solvedCount = data['solved_count'] ?? 0;
+          final double accuracy = (data['accuracy'] ?? 0).toDouble();
 
-          const SizedBox(height: 15),
+          // Calculate some arbitrary XP for fun based on solved count
+          final int xp = solvedCount * 120;
 
-          const Center(
-            child: Text(
-              "Shun",
-              style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
-            ),
-          ),
-
-          const SizedBox(height: 5),
-
-          const Center(
-            child: Text(
-              "Level 7 Reviewer",
-              style: TextStyle(color: Colors.grey),
-            ),
-          ),
-
-          const SizedBox(height: 25),
-
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(20),
-              child: Column(
-                children: [
-                  const Text(
-                    "Overall Statistics",
-                    style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
-                  ),
-
-                  const SizedBox(height: 20),
-
-                  Row(
-                    children: [
-                      Expanded(
-                        child: statCard(
-                          Icons.workspace_premium,
-                          "XP",
-                          "3325",
-                          Colors.orange,
-                        ),
-                      ),
-
-                      const SizedBox(width: 10),
-
-                      Expanded(
-                        child: statCard(
-                          Icons.analytics,
-                          "Accuracy",
-                          "94%",
-                          Colors.blue,
-                        ),
-                      ),
-                    ],
-                  ),
-
-                  const SizedBox(height: 10),
-
-                  Row(
-                    children: [
-                      Expanded(
-                        child: statCard(
-                          Icons.task_alt,
-                          "Solved",
-                          "32",
-                          Colors.green,
-                        ),
-                      ),
-
-                      const SizedBox(width: 10),
-
-                      Expanded(
-                        child: statCard(
-                          Icons.local_fire_department,
-                          "Streak",
-                          "12",
-                          Colors.red,
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
+          return ListView(
+            padding: const EdgeInsets.all(20),
+            children: [
+              const CircleAvatar(radius: 45, child: Icon(Icons.person, size: 50)),
+              const SizedBox(height: 15),
+              Center(
+                child: Text(
+                  data['owner'] ?? 'User',
+                  style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
+                ),
               ),
-            ),
-          ),
-
-          const SizedBox(height: 25),
-
-          const Text(
-            "Skill Analysis",
-            style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
-          ),
-
-          const SizedBox(height: 15),
-
-          skillTile("SQL Injection", 95, Colors.green),
-
-          skillTile("Authentication", 88, Colors.blue),
-
-          skillTile("XSS", 82, Colors.orange),
-
-          skillTile("Performance", 65, Colors.red),
-
-          const SizedBox(height: 25),
-
-          Card(
-            color: Colors.green.shade50,
-            child: const ListTile(
-              leading: Icon(Icons.emoji_events, color: Colors.green),
-              title: Text("Best Skill"),
-              subtitle: Text("SQL Injection"),
-            ),
-          ),
-
-          Card(
-            color: Colors.red.shade50,
-            child: const ListTile(
-              leading: Icon(Icons.trending_down, color: Colors.red),
-              title: Text("Needs Improvement"),
-              subtitle: Text("Performance"),
-            ),
-          ),
-        ],
+              const SizedBox(height: 5),
+              const Center(
+                child: Text(
+                  "Reviewer",
+                  style: TextStyle(color: Colors.grey),
+                ),
+              ),
+              const SizedBox(height: 25),
+              Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(20),
+                  child: Column(
+                    children: [
+                      const Text(
+                        "Overall Statistics",
+                        style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+                      ),
+                      const SizedBox(height: 20),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: statCard(
+                              Icons.workspace_premium,
+                              "XP",
+                              xp.toString(),
+                              Colors.orange,
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: statCard(
+                              Icons.analytics,
+                              "Accuracy",
+                              "$accuracy%",
+                              Colors.blue,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 10),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: statCard(
+                              Icons.task_alt,
+                              "Solved",
+                              solvedCount.toString(),
+                              Colors.green,
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: statCard(
+                              Icons.format_list_numbered,
+                              "Total PRs",
+                              totalGenerated.toString(),
+                              Colors.purple,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 25),
+              // Skill analysis is hardcoded for now, could be dynamic later based on tags
+              const Text(
+                "Skill Analysis",
+                style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 15),
+              skillTile("Code Review", accuracy.toInt(), Colors.green),
+              skillTile("Security", (accuracy * 0.9).toInt(), Colors.blue),
+            ],
+          );
+        },
+        loading: () => const Center(child: CircularProgressIndicator()),
+        error: (err, stack) => Center(child: Text('Error: $err')),
       ),
     );
   }
@@ -142,20 +117,17 @@ class ProfileScreen extends StatelessWidget {
   Widget statCard(IconData icon, String title, String value, Color color) {
     return Card(
       elevation: 0,
-      color: color.withOpacity(0.1),
+      color: color.withValues(alpha: 0.1),
       child: Padding(
         padding: const EdgeInsets.symmetric(vertical: 20),
         child: Column(
           children: [
             Icon(icon, color: color),
-
             const SizedBox(height: 10),
-
             Text(
               value,
               style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
             ),
-
             Text(title),
           ],
         ),
@@ -175,9 +147,7 @@ class ProfileScreen extends StatelessWidget {
               "$title   $value%",
               style: const TextStyle(fontWeight: FontWeight.bold),
             ),
-
             const SizedBox(height: 8),
-
             LinearProgressIndicator(
               value: value / 100,
               minHeight: 10,
