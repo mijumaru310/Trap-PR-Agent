@@ -5,6 +5,7 @@ import 'package:url_launcher/url_launcher.dart';
 import 'ask_ai_screen.dart';
 import 'generate_trap_dialog.dart';
 import '../providers/stats_provider.dart';
+import '../providers/api_provider.dart';
 
 class HomeScreen extends ConsumerWidget {
   const HomeScreen({super.key});
