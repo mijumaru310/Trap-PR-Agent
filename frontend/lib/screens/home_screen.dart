@@ -53,45 +53,81 @@ class HomeScreen extends ConsumerWidget {
               ref.invalidate(statsProvider);
             },
             child: ListView(
-              padding: const EdgeInsets.all(20),
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
               children: [
                 const Text(
-                  "Today's Mission",
-                  style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
+                  "Ongoing Mission",
+                  style: TextStyle(fontSize: 28, fontWeight: FontWeight.w800, letterSpacing: -0.5, color: Color(0xFF0F172A)),
                 ),
-                const SizedBox(height: 20),
+                const SizedBox(height: 24),
                 if (pendingMission != null)
                   _buildPendingMissionCard(context, ref, pendingMission, data['owner'])
                 else
                   const Card(
                     child: Padding(
-                      padding: EdgeInsets.all(20),
-                      child: Text("No pending missions. Generate a new Trap PR!"),
+                      padding: EdgeInsets.all(32),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.inbox_outlined, size: 48, color: Color(0xFF94A3B8)),
+                          SizedBox(height: 16),
+                          Text(
+                            "No pending missions",
+                            style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600, color: Color(0xFF334155)),
+                          ),
+                          SizedBox(height: 8),
+                          Text(
+                            "Tap the + New Trap PR button to generate a new Trap PR!",
+                            textAlign: TextAlign.center,
+                            style: TextStyle(color: Color(0xFF64748B)),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
-                const SizedBox(height: 30),
+                const SizedBox(height: 40),
                 const Text(
                   "Past Missions",
-                  style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+                  style: TextStyle(fontSize: 24, fontWeight: FontWeight.w800, letterSpacing: -0.5, color: Color(0xFF0F172A)),
                 ),
-                const SizedBox(height: 15),
+                const SizedBox(height: 16),
                 ...pastMissions.map((mission) {
                   final score = mission['score'];
                   final status = mission['status'];
+                  final isSolved = status == 'solved';
                   return Card(
+                    margin: const EdgeInsets.only(bottom: 12),
                     child: ListTile(
-                      leading: Icon(
-                        status == 'solved' ? Icons.check_circle : Icons.cancel,
-                        color: status == 'solved' ? Colors.green : Colors.red,
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                      leading: Container(
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: isSolved ? const Color(0xFF10B981).withOpacity(0.1) : const Color(0xFFEF4444).withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Icon(
+                          isSolved ? Icons.check_circle_outline : Icons.error_outline,
+                          color: isSolved ? const Color(0xFF10B981) : const Color(0xFFEF4444),
+                        ),
                       ),
-                      title: Text("PR #${mission['pr_number']}"),
-                      subtitle: Text(mission['feature_proposal'] ?? 'N/A', maxLines: 1, overflow: TextOverflow.ellipsis),
-                      trailing: Text(
-                        score?.toString() ?? '-',
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                          color: score != null && score >= 80 ? Colors.green : Colors.red,
+                      title: Text("PR #${mission['pr_number']}", style: const TextStyle(fontWeight: FontWeight.w700, color: Color(0xFF0F172A))),
+                      subtitle: Padding(
+                        padding: const EdgeInsets.only(top: 4),
+                        child: Text(mission['feature_proposal'] ?? 'N/A', maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Color(0xFF64748B))),
+                      ),
+                      trailing: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFF1F5F9),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Text(
+                          score?.toString() ?? '-',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w800,
+                            color: score != null && score >= 80 ? const Color(0xFF10B981) : const Color(0xFF0F172A),
+                          ),
                         ),
                       ),
                       onTap: () {
@@ -126,104 +162,138 @@ class HomeScreen extends ConsumerWidget {
 
   Widget _buildPendingMissionCard(BuildContext context, WidgetRef ref, Map<String, dynamic> mission, String owner) {
     return Card(
-      elevation: 3,
-      child: Padding(
-        padding: const EdgeInsets.all(20),
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(20),
+        side: const BorderSide(color: Color(0xFFE2E8F0), width: 1.5),
+      ),
+      child: Container(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(20),
+          gradient: const LinearGradient(
+            colors: [Colors.white, Color(0xFFF8FAFC)],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+        ),
+        padding: const EdgeInsets.all(24),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              "PR #${mission['pr_number']}",
-              style: const TextStyle(
-                color: Colors.blue,
-                fontWeight: FontWeight.bold,
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              decoration: BoxDecoration(
+                color: const Color(0xFF0052FF).withOpacity(0.1),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Text(
+                "PR #${mission['pr_number']}",
+                style: const TextStyle(
+                  color: Color(0xFF0052FF),
+                  fontWeight: FontWeight.w700,
+                  fontSize: 14,
+                ),
               ),
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 16),
             Text(
               mission['feature_proposal'] ?? 'New Feature',
-              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w800, color: Color(0xFF0F172A), height: 1.3),
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
             ),
-            const SizedBox(height: 15),
+            const SizedBox(height: 20),
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: const Color(0xFFE2E8F0)),
+              ),
+              child: Column(
+                children: [
+                  Row(
+                    children: [
+                      const Icon(Icons.folder_outlined, color: Color(0xFF64748B), size: 20),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          mission['repo'] ?? 'N/A',
+                          style: const TextStyle(color: Color(0xFF334155), fontWeight: FontWeight.w500),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 8),
+                    child: Divider(color: Color(0xFFE2E8F0), height: 1),
+                  ),
+                  const Row(
+                    children: [
+                      Icon(Icons.auto_awesome_outlined, color: Color(0xFFF59E0B), size: 20),
+                      SizedBox(width: 12),
+                      Text("Auto-scoring enabled", style: TextStyle(color: Color(0xFF10B981), fontWeight: FontWeight.w600)),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 24),
             Row(
               children: [
-                const Icon(Icons.folder),
-                const SizedBox(width: 8),
-                Text(mission['repo'] ?? 'N/A'),
-              ],
-            ),
-            const SizedBox(height: 10),
-            const Row(
-              children: [
-                Icon(Icons.auto_awesome, color: Colors.amber),
-                SizedBox(width: 8),
-                Text("Auto-scoring enabled", style: TextStyle(color: Colors.green)),
-              ],
-            ),
-            const SizedBox(height: 25),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton.icon(
-                icon: const Icon(Icons.open_in_new),
-                label: const Text("Open GitHub"),
-                onPressed: () {
-                  if (mission['pr_url'] != null) {
-                    launchUrl(Uri.parse(mission['pr_url']));
-                  }
-                },
-              ),
-            ),
-            const SizedBox(height: 12),
-            SizedBox(
-              width: double.infinity,
-              child: OutlinedButton.icon(
-                icon: const Icon(Icons.refresh),
-                label: const Text("Refresh Status"),
-                onPressed: () {
-                  ref.invalidate(statsProvider);
-                },
-              ),
-            ),
-            const SizedBox(height: 12),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton.icon(
-                icon: const Icon(Icons.grading),
-                label: const Text("Score My Review (Manual)"),
-                onPressed: () async {
-                  try {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Scoring review...')),
-                    );
-                    await ref.read(apiServiceProvider).scoreReview(
-                          owner,
-                          mission['repo'],
-                          mission['pr_number'],
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: () {
+                      if (mission['pr_url'] != null) {
+                        launchUrl(Uri.parse(mission['pr_url']));
+                      }
+                    },
+                    child: const Text("GitHub"),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: ElevatedButton(
+                    onPressed: () async {
+                      try {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Scoring review...')),
                         );
-                    ref.invalidate(statsProvider);
-                    if (context.mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Scoring completed!')),
-                      );
-                    }
-                  } catch (e) {
-                    if (context.mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text('Error: $e')),
-                      );
-                    }
-                  }
-                },
-              ),
+                        await ref.read(apiServiceProvider).scoreReview(
+                              owner,
+                              mission['repo'],
+                              mission['pr_number'],
+                            );
+                        ref.invalidate(statsProvider);
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('Scoring completed!')),
+                          );
+                        }
+                      } catch (e) {
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text('Error: $e')),
+                          );
+                        }
+                      }
+                    },
+                    child: const Text("Score Review"),
+                  ),
+                ),
+              ],
             ),
             const SizedBox(height: 12),
             SizedBox(
               width: double.infinity,
               child: OutlinedButton.icon(
-                icon: const Icon(Icons.smart_toy),
-                label: const Text("Ask AI"),
+                icon: const Icon(Icons.smart_toy_outlined),
+                label: const Text("Ask AI Assistant"),
+                style: OutlinedButton.styleFrom(
+                  backgroundColor: const Color(0xFF0052FF).withOpacity(0.02),
+                  side: const BorderSide(color: Color(0xFF0052FF), width: 1.5),
+                  foregroundColor: const Color(0xFF0052FF),
+                ),
                 onPressed: () {
                   Navigator.push(
                     context,

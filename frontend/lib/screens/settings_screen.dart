@@ -55,47 +55,62 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         centerTitle: true,
       ),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(20.0),
+        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
-              'Security Notice',
-              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
-            ),
-            const SizedBox(height: 8),
-            const Text(
-              'These keys are stored securely on your device using encrypted storage. If left blank, the server will use its default environment variables.',
-              style: TextStyle(color: Colors.grey),
-            ),
-            const SizedBox(height: 30),
-            TextField(
-              controller: _githubUsernameController,
-              decoration: const InputDecoration(
-                labelText: 'GitHub Username (For personalized stats)',
-                hintText: 'e.g. octocat',
-                border: OutlineInputBorder(),
-                prefixIcon: Icon(Icons.person),
+            Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF1F5F9),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: const Color(0xFFE2E8F0)),
               ),
+              child: const Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(Icons.shield_outlined, color: Color(0xFF0052FF), size: 24),
+                      SizedBox(width: 12),
+                      Text('Security Notice', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 18, color: Color(0xFF0F172A))),
+                    ],
+                  ),
+                  SizedBox(height: 12),
+                  Text(
+                    'These keys are stored securely on your device using encrypted storage. If left blank, the server will use its default environment variables.',
+                    style: TextStyle(color: Color(0xFF475569), height: 1.5),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 32),
+            _buildTextField(
+              controller: _githubUsernameController,
+              label: 'GitHub Username',
+              hint: 'e.g. octocat',
+              icon: Icons.person_outline,
             ),
             const SizedBox(height: 20),
-            TextField(
+            _buildTextField(
               controller: _githubTokenController,
-              decoration: const InputDecoration(
-                labelText: 'GitHub Personal Access Token',
-                hintText: 'ghp_...',
-                border: OutlineInputBorder(),
-                prefixIcon: Icon(Icons.code),
-              ),
-              obscureText: true,
+              label: 'GitHub Personal Access Token',
+              hint: 'ghp_...',
+              icon: Icons.code,
+              obscure: true,
             ),
             const SizedBox(height: 20),
             DropdownButtonFormField<String>(
               value: _selectedProvider,
-              decoration: const InputDecoration(
+              decoration: InputDecoration(
                 labelText: 'AI Provider',
-                border: OutlineInputBorder(),
-                prefixIcon: Icon(Icons.smart_toy),
+                labelStyle: const TextStyle(fontWeight: FontWeight.w600, color: Color(0xFF64748B)),
+                filled: true,
+                fillColor: Colors.white,
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFFE2E8F0))),
+                enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFFE2E8F0))),
+                focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFF0052FF), width: 2)),
+                prefixIcon: const Icon(Icons.smart_toy_outlined, color: Color(0xFF64748B)),
               ),
               items: const [
                 DropdownMenuItem(value: 'gemini', child: Text('Google Gemini (gemini-2.5-flash)')),
@@ -111,27 +126,41 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               },
             ),
             const SizedBox(height: 20),
-            TextField(
+            _buildTextField(
               controller: _aiApiKeyController,
-              decoration: const InputDecoration(
-                labelText: 'AI API Key',
-                hintText: 'API key for the selected provider',
-                border: OutlineInputBorder(),
-                prefixIcon: Icon(Icons.vpn_key),
-              ),
-              obscureText: true,
+              label: 'AI API Key',
+              hint: 'API key for the selected provider',
+              icon: Icons.vpn_key_outlined,
+              obscure: true,
             ),
             const SizedBox(height: 40),
             SizedBox(
               width: double.infinity,
-              height: 50,
               child: ElevatedButton(
                 onPressed: _saveSettings,
-                child: const Text('Save Settings', style: TextStyle(fontSize: 16)),
+                child: const Text('Save Settings'),
               ),
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildTextField({required TextEditingController controller, required String label, required String hint, required IconData icon, bool obscure = false}) {
+    return TextField(
+      controller: controller,
+      obscureText: obscure,
+      decoration: InputDecoration(
+        labelText: label,
+        labelStyle: const TextStyle(fontWeight: FontWeight.w600, color: Color(0xFF64748B)),
+        hintText: hint,
+        filled: true,
+        fillColor: Colors.white,
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFFE2E8F0))),
+        enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFFE2E8F0))),
+        focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFF0052FF), width: 2)),
+        prefixIcon: Icon(icon, color: const Color(0xFF64748B)),
       ),
     );
   }

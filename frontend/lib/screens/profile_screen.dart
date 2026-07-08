@@ -21,90 +21,76 @@ class ProfileScreen extends ConsumerWidget {
           final int xp = solvedCount * 120;
 
           return ListView(
-            padding: const EdgeInsets.all(20),
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
             children: [
-              const CircleAvatar(radius: 45, child: Icon(Icons.person, size: 50)),
-              const SizedBox(height: 15),
-              Center(
-                child: Text(
-                  data['owner'] ?? 'User',
-                  style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
+              Container(
+                padding: const EdgeInsets.all(24),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(24),
+                  border: Border.all(color: const Color(0xFFE2E8F0)),
+                  boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 10, offset: const Offset(0, 4))],
+                ),
+                child: Column(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(4),
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        border: Border.all(color: const Color(0xFF0052FF), width: 2),
+                      ),
+                      child: const CircleAvatar(
+                        radius: 45,
+                        backgroundColor: Color(0xFFF8FAFC),
+                        child: Icon(Icons.person_outline, size: 40, color: Color(0xFF0052FF)),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      data['owner'] ?? 'User',
+                      style: const TextStyle(fontSize: 26, fontWeight: FontWeight.w800, color: Color(0xFF0F172A), letterSpacing: -0.5),
+                    ),
+                    const SizedBox(height: 4),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF1F5F9),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: const Text("Senior Reviewer", style: TextStyle(color: Color(0xFF64748B), fontWeight: FontWeight.w600, fontSize: 12)),
+                    ),
+                  ],
                 ),
               ),
-              const SizedBox(height: 5),
-              const Center(
-                child: Text(
-                  "Reviewer",
-                  style: TextStyle(color: Colors.grey),
-                ),
+              const SizedBox(height: 32),
+              const Text(
+                "Overall Statistics",
+                style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800, letterSpacing: -0.5, color: Color(0xFF0F172A)),
               ),
-              const SizedBox(height: 25),
-              Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(20),
-                  child: Column(
-                    children: [
-                      const Text(
-                        "Overall Statistics",
-                        style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
-                      ),
-                      const SizedBox(height: 20),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: statCard(
-                              Icons.workspace_premium,
-                              "XP",
-                              xp.toString(),
-                              Colors.orange,
-                            ),
-                          ),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: statCard(
-                              Icons.analytics,
-                              "Accuracy",
-                              "$accuracy%",
-                              Colors.blue,
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 10),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: statCard(
-                              Icons.task_alt,
-                              "Solved",
-                              solvedCount.toString(),
-                              Colors.green,
-                            ),
-                          ),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: statCard(
-                              Icons.format_list_numbered,
-                              "Total PRs",
-                              totalGenerated.toString(),
-                              Colors.purple,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  Expanded(child: statCard(Icons.workspace_premium_outlined, "XP", xp.toString(), const Color(0xFFF59E0B))),
+                  const SizedBox(width: 12),
+                  Expanded(child: statCard(Icons.analytics_outlined, "Accuracy", "$accuracy%", const Color(0xFF0052FF))),
+                ],
               ),
-              const SizedBox(height: 25),
-              // Skill analysis is hardcoded for now, could be dynamic later based on tags
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  Expanded(child: statCard(Icons.task_alt_outlined, "Solved", solvedCount.toString(), const Color(0xFF10B981))),
+                  const SizedBox(width: 12),
+                  Expanded(child: statCard(Icons.format_list_numbered_outlined, "Total PRs", totalGenerated.toString(), const Color(0xFF8B5CF6))),
+                ],
+              ),
+              const SizedBox(height: 32),
               const Text(
                 "Skill Analysis",
-                style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+                style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800, letterSpacing: -0.5, color: Color(0xFF0F172A)),
               ),
-              const SizedBox(height: 15),
-              skillTile("Code Review", accuracy.toInt(), Colors.green),
-              skillTile("Security", (accuracy * 0.9).toInt(), Colors.blue),
+              const SizedBox(height: 16),
+              skillTile("Code Review", accuracy.toInt(), const Color(0xFF10B981)),
+              skillTile("Security", (accuracy * 0.9).toInt(), const Color(0xFF0052FF)),
             ],
           );
         },
@@ -115,47 +101,58 @@ class ProfileScreen extends ConsumerWidget {
   }
 
   Widget statCard(IconData icon, String title, String value, Color color) {
-    return Card(
-      elevation: 0,
-      color: color.withValues(alpha: 0.1),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 20),
-        child: Column(
-          children: [
-            Icon(icon, color: color),
-            const SizedBox(height: 10),
-            Text(
-              value,
-              style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
-            ),
-            Text(title),
-          ],
-        ),
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 16),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.05),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: color.withOpacity(0.1)),
+      ),
+      child: Column(
+        children: [
+          Icon(icon, color: color, size: 28),
+          const SizedBox(height: 12),
+          Text(
+            value,
+            style: TextStyle(fontSize: 24, fontWeight: FontWeight.w800, color: color, letterSpacing: -0.5),
+          ),
+          const SizedBox(height: 4),
+          Text(title, style: const TextStyle(fontWeight: FontWeight.w600, color: Color(0xFF64748B), fontSize: 13)),
+        ],
       ),
     );
   }
 
   Widget skillTile(String title, int value, Color color) {
-    return Card(
-      margin: const EdgeInsets.only(bottom: 15),
-      child: Padding(
-        padding: const EdgeInsets.all(15),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              "$title   $value%",
-              style: const TextStyle(fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 8),
-            LinearProgressIndicator(
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(title, style: const TextStyle(fontWeight: FontWeight.w700, color: Color(0xFF0F172A))),
+              Text("$value%", style: TextStyle(fontWeight: FontWeight.w800, color: color)),
+            ],
+          ),
+          const SizedBox(height: 12),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(8),
+            child: LinearProgressIndicator(
               value: value / 100,
-              minHeight: 10,
-              borderRadius: BorderRadius.circular(20),
+              minHeight: 8,
+              backgroundColor: const Color(0xFFF1F5F9),
               color: color,
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
