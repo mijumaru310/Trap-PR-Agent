@@ -4,6 +4,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import 'ask_ai_screen.dart';
 import 'generate_trap_dialog.dart';
+import 'settings_screen.dart';
 import '../providers/stats_provider.dart';
 import '../providers/api_provider.dart';
 
@@ -15,7 +16,21 @@ class HomeScreen extends ConsumerWidget {
     final statsAsyncValue = ref.watch(statsProvider);
 
     return Scaffold(
-      appBar: AppBar(title: const Text("Trap-PR Agent"), centerTitle: true),
+      appBar: AppBar(
+        title: const Text("Trap-PR Agent"),
+        centerTitle: true,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.settings),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const SettingsScreen()),
+              );
+            },
+          ),
+        ],
+      ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () {
           showDialog(
