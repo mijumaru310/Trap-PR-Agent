@@ -72,6 +72,8 @@ def generate_structured_response(
     else:
         raise ValueError(f"Unknown AI Provider: {provider}")
 
+from fastapi import HTTPException
+
 def get_ai_credentials(request_headers: dict) -> tuple[str, str]:
     """
     リクエストヘッダーからプロバイダとAPIキーを取得する。
@@ -89,6 +91,6 @@ def get_ai_credentials(request_headers: dict) -> tuple[str, str]:
             api_key = os.getenv("ANTHROPIC_API_KEY")
             
     if not api_key:
-        raise ValueError(f"API Key for {provider} is missing. Set it in the app settings or .env file.")
+        raise HTTPException(status_code=400, detail=f"API Key for {provider} is missing. アプリの設定画面から入力するか、サーバーの.envファイルを確認してください。")
         
     return provider, api_key

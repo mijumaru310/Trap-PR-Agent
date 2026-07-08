@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/api_provider.dart';
 import '../providers/stats_provider.dart';
+import '../providers/settings_provider.dart';
 
 class GenerateTrapDialog extends ConsumerStatefulWidget {
   const GenerateTrapDialog({super.key});
@@ -11,12 +12,20 @@ class GenerateTrapDialog extends ConsumerStatefulWidget {
 }
 
 class _GenerateTrapDialogState extends ConsumerState<GenerateTrapDialog> {
-  final _ownerController = TextEditingController(text: defaultOwner);
-  final _repoController = TextEditingController(text: defaultRepo);
+  late TextEditingController _ownerController;
+  late TextEditingController _repoController;
   final _pathController = TextEditingController();
 
   bool _isLoading = false;
   
+  @override
+  void initState() {
+    super.initState();
+    final settings = ref.read(settingsProvider);
+    _ownerController = TextEditingController(text: settings.githubUsername);
+    _repoController = TextEditingController(text: 'trap-pr-target-demo');
+  }
+
   @override
   void dispose() {
     _ownerController.dispose();

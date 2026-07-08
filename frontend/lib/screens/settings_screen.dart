@@ -10,6 +10,7 @@ class SettingsScreen extends ConsumerStatefulWidget {
 }
 
 class _SettingsScreenState extends ConsumerState<SettingsScreen> {
+  late TextEditingController _githubUsernameController;
   late TextEditingController _githubTokenController;
   late TextEditingController _aiApiKeyController;
   String _selectedProvider = 'gemini';
@@ -18,6 +19,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   void initState() {
     super.initState();
     final settings = ref.read(settingsProvider);
+    _githubUsernameController = TextEditingController(text: settings.githubUsername);
     _githubTokenController = TextEditingController(text: settings.githubToken);
     _aiApiKeyController = TextEditingController(text: settings.aiApiKey);
     _selectedProvider = settings.aiProvider;
@@ -25,6 +27,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
   @override
   void dispose() {
+    _githubUsernameController.dispose();
     _githubTokenController.dispose();
     _aiApiKeyController.dispose();
     super.dispose();
@@ -32,6 +35,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
   void _saveSettings() {
     ref.read(settingsProvider.notifier).saveSettings(
+          githubUsername: _githubUsernameController.text.trim().isEmpty ? 'mijumaru310' : _githubUsernameController.text.trim(),
           githubToken: _githubTokenController.text.trim(),
           aiProvider: _selectedProvider,
           aiApiKey: _aiApiKeyController.text.trim(),
@@ -65,6 +69,16 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               style: TextStyle(color: Colors.grey),
             ),
             const SizedBox(height: 30),
+            TextField(
+              controller: _githubUsernameController,
+              decoration: const InputDecoration(
+                labelText: 'GitHub Username (For personalized stats)',
+                hintText: 'e.g. octocat',
+                border: OutlineInputBorder(),
+                prefixIcon: Icon(Icons.person),
+              ),
+            ),
+            const SizedBox(height: 20),
             TextField(
               controller: _githubTokenController,
               decoration: const InputDecoration(

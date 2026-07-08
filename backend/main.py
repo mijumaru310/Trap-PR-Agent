@@ -35,7 +35,7 @@ app.add_middleware(
 def get_github_client(request_headers: dict) -> Github:
     token = request_headers.get("x-github-token") or os.getenv("GITHUB_TOKEN")
     if not token:
-        raise ValueError("GITHUB_TOKENが設定されていません。アプリで設定するか.envファイルを確認してください。")
+        raise HTTPException(status_code=400, detail="GITHUB_TOKENが設定されていません。アプリの設定画面から入力するか、サーバーの.envファイルを確認してください。")
     return Github(auth=Auth.Token(token))
 
 # Firebaseの初期化
