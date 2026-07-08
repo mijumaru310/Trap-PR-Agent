@@ -489,19 +489,17 @@ def _execute_scoring(owner: str, repo: str, pr_number: int) -> dict:
     pull_request = repository.get_pull(pr_number)
     
     # PRに紐づくすべてのコメント（通常のコメントと、コード上のレビューコメント）を回収
-    # ただしBot自身のコメントは除外する
+    # ただし自動採点結果のコメントは除外する
     comments = []
-    
-    bot_user = g.get_user().login  # Bot自身のユーザー名を取得
     
     # 通常のPRコメントを取得
     for comment in pull_request.get_issue_comments():
-        if comment.user.login != bot_user:
+        if not comment.body.startswith("## 🤖 Trap-PR Agent"):
             comments.append(f"{comment.user.login}: {comment.body}")
         
     # コード行に対するレビューコメントを取得
     for comment in pull_request.get_comments():
-        if comment.user.login != bot_user:
+        if not comment.body.startswith("## 🤖 Trap-PR Agent"):
             comments.append(f"{comment.user.login} (on code): {comment.body}")
         
     if not comments:
@@ -634,18 +632,16 @@ def _poll_for_comments(owner: str, repo: str, pr_number: int, interval: int = 30
             repository = g.get_repo(repo_name)
             pull_request = repository.get_pull(pr_number)
             
-            bot_user = g.get_user().login
-            
-            # 通常コメント + コードレビューコメント
+            # 通常コメント + コードレビューコメント（自動採点結果は除外）
             has_new_comments = False
             for comment in pull_request.get_issue_comments():
-                if comment.user.login != bot_user:
+                if not comment.body.startswith("## 🤖 Trap-PR Agent"):
                     has_new_comments = True
                     break
             
             if not has_new_comments:
                 for comment in pull_request.get_comments():
-                    if comment.user.login != bot_user:
+                    if not comment.body.startswith("## 🤖 Trap-PR Agent"):
                         has_new_comments = True
                         break
             
@@ -732,14 +728,10 @@ async def github_webhook(request: Request, background_tasks: BackgroundTasks):
     if not all([pr_number, owner, repo]):
         return {"status": "error", "detail": "PR情報を取得できませんでした。"}
     
-    # Bot自身のコメントは無視
-    comment_user = payload.get("comment", {}).get("user", {}).get("login", "")
-    try:
-        bot_user = g.get_user().login
-        if comment_user == bot_user:
-            return {"status": "ignored", "reason": "bot_comment"}
-    except Exception:
-        pass
+    # 自動採点結果のコメントは無視
+    comment_body = payload.get("comment", {}).get("body", "")
+    if comment_body.startswith("## 🤖 Trap-PR Agent"):
+        return {"status": "ignored", "reason": "bot_comment"}
     
     # Firestoreで罠PRかどうかを確認
     doc_id = f"{owner}_{repo}_{pr_number}"
