@@ -44,17 +44,25 @@ class _AskAIScreenState extends State<AskAIScreen> {
       alignment: isUser ? Alignment.centerRight : Alignment.centerLeft,
       child: Container(
         margin: const EdgeInsets.symmetric(vertical: 6),
-        padding: const EdgeInsets.all(14),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         constraints: const BoxConstraints(maxWidth: 280),
         decoration: BoxDecoration(
-          color: isUser ? Colors.blue : Colors.grey.shade200,
-          borderRadius: BorderRadius.circular(16),
+          color: isUser ? const Color(0xFF0052FF) : Colors.white,
+          borderRadius: BorderRadius.only(
+            topLeft: const Radius.circular(16),
+            topRight: const Radius.circular(16),
+            bottomLeft: Radius.circular(isUser ? 16 : 4),
+            bottomRight: Radius.circular(isUser ? 4 : 16),
+          ),
+          border: isUser ? null : Border.all(color: const Color(0xFFE2E8F0)),
+          boxShadow: isUser ? [BoxShadow(color: const Color(0xFF0052FF).withOpacity(0.3), blurRadius: 8, offset: const Offset(0, 4))] : [BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 4, offset: const Offset(0, 2))],
         ),
         child: Text(
           message["text"]!,
           style: TextStyle(
-            color: isUser ? Colors.white : Colors.black,
-            fontSize: 16,
+            color: isUser ? Colors.white : const Color(0xFF0F172A),
+            fontSize: 15,
+            height: 1.4,
           ),
         ),
       ),
@@ -64,13 +72,16 @@ class _AskAIScreenState extends State<AskAIScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text("Ask Trap Assistant")),
+      backgroundColor: const Color(0xFFFAFAFA),
+      appBar: AppBar(
+        title: const Text("Ask Trap Assistant", style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
+        centerTitle: true,
+      ),
 
-      body: Column(
         children: [
           Expanded(
             child: ListView.builder(
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.all(20),
               itemCount: messages.length,
               itemBuilder: (context, index) {
                 return buildMessage(messages[index]);
@@ -78,30 +89,46 @@ class _AskAIScreenState extends State<AskAIScreen> {
             ),
           ),
 
-          const Divider(height: 1),
-
-          Padding(
-            padding: const EdgeInsets.all(10),
-
-            child: Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: _controller,
-                    decoration: const InputDecoration(
-                      hintText: "Ask about this PR...",
-                      border: OutlineInputBorder(),
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: const BoxDecoration(
+              color: Colors.white,
+              border: Border(top: BorderSide(color: Color(0xFFE2E8F0))),
+            ),
+            child: SafeArea(
+              child: Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: _controller,
+                      decoration: InputDecoration(
+                        hintText: "Ask about this PR...",
+                        hintStyle: const TextStyle(color: Color(0xFF94A3B8)),
+                        filled: true,
+                        fillColor: const Color(0xFFF1F5F9),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(24),
+                          borderSide: BorderSide.none,
+                        ),
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+                      ),
                     ),
                   ),
-                ),
 
-                const SizedBox(width: 10),
+                  const SizedBox(width: 12),
 
-                IconButton(
-                  onPressed: sendMessage,
-                  icon: const Icon(Icons.send),
-                ),
-              ],
+                  Container(
+                    decoration: const BoxDecoration(
+                      color: Color(0xFF0052FF),
+                      shape: BoxShape.circle,
+                    ),
+                    child: IconButton(
+                      onPressed: sendMessage,
+                      icon: const Icon(Icons.send_rounded, color: Colors.white, size: 20),
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         ],
