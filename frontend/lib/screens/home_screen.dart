@@ -56,7 +56,7 @@ class HomeScreen extends ConsumerWidget {
               padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
               children: [
                 const Text(
-                  "Today's Mission",
+                  "Ongoing Mission",
                   style: TextStyle(fontSize: 28, fontWeight: FontWeight.w800, letterSpacing: -0.5, color: Color(0xFF0F172A)),
                 ),
                 const SizedBox(height: 24),
@@ -77,7 +77,7 @@ class HomeScreen extends ConsumerWidget {
                           ),
                           SizedBox(height: 8),
                           Text(
-                            "Tap the + button to generate a new Trap PR!",
+                            "Tap the + New Trap PR button to generate a new Trap PR!",
                             textAlign: TextAlign.center,
                             style: TextStyle(color: Color(0xFF64748B)),
                           ),
