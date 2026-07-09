@@ -8,11 +8,18 @@ import 'settings_screen.dart';
 import '../providers/stats_provider.dart';
 import '../providers/api_provider.dart';
 
-class HomeScreen extends ConsumerWidget {
+class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<HomeScreen> createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends ConsumerState<HomeScreen> {
+  bool _isScoring = false;
+
+  @override
+  Widget build(BuildContext context) {
     final statsAsyncValue = ref.watch(statsProvider);
 
     return Scaffold(
@@ -39,7 +46,7 @@ class HomeScreen extends ConsumerWidget {
           );
         },
         icon: const Icon(Icons.add),
-        label: const Text("New Trap PR"),
+        label: const Text("罠PRを作成"),
       ),
       body: statsAsyncValue.when(
         data: (data) {
@@ -56,12 +63,12 @@ class HomeScreen extends ConsumerWidget {
               padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
               children: [
                 const Text(
-                  "Ongoing Mission",
+                  "進行中のミッション",
                   style: TextStyle(fontSize: 28, fontWeight: FontWeight.w800, letterSpacing: -0.5, color: Color(0xFF0F172A)),
                 ),
                 const SizedBox(height: 24),
                 if (pendingMission != null)
-                  _buildPendingMissionCard(context, ref, pendingMission, data['owner'])
+                  _buildPendingMissionCard(context, pendingMission, data['owner'])
                 else
                   const Card(
                     child: Padding(
@@ -72,12 +79,12 @@ class HomeScreen extends ConsumerWidget {
                           Icon(Icons.inbox_outlined, size: 48, color: Color(0xFF94A3B8)),
                           SizedBox(height: 16),
                           Text(
-                            "No pending missions",
+                            "進行中のミッションはありません",
                             style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600, color: Color(0xFF334155)),
                           ),
                           SizedBox(height: 8),
                           Text(
-                            "Tap the + New Trap PR button to generate a new Trap PR!",
+                            "右下の＋ボタンから新しい罠PRを作成しましょう！",
                             textAlign: TextAlign.center,
                             style: TextStyle(color: Color(0xFF64748B)),
                           ),
@@ -87,7 +94,7 @@ class HomeScreen extends ConsumerWidget {
                   ),
                 const SizedBox(height: 40),
                 const Text(
-                  "Past Missions",
+                  "過去のミッション",
                   style: TextStyle(fontSize: 24, fontWeight: FontWeight.w800, letterSpacing: -0.5, color: Color(0xFF0F172A)),
                 ),
                 const SizedBox(height: 16),
@@ -147,11 +154,11 @@ class HomeScreen extends ConsumerWidget {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Text('Error: $err'),
+              Text('エラー: $err'),
               const SizedBox(height: 16),
               ElevatedButton(
                 onPressed: () => ref.invalidate(statsProvider),
-                child: const Text('Retry'),
+                child: const Text('再試行'),
               ),
             ],
           ),
@@ -160,7 +167,7 @@ class HomeScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildPendingMissionCard(BuildContext context, WidgetRef ref, Map<String, dynamic> mission, String owner) {
+  Widget _buildPendingMissionCard(BuildContext context, Map<String, dynamic> mission, String owner) {
     return Card(
       elevation: 0,
       shape: RoundedRectangleBorder(
@@ -232,7 +239,7 @@ class HomeScreen extends ConsumerWidget {
                     children: [
                       Icon(Icons.auto_awesome_outlined, color: Color(0xFFF59E0B), size: 20),
                       SizedBox(width: 12),
-                      Text("Auto-scoring enabled", style: TextStyle(color: Color(0xFF10B981), fontWeight: FontWeight.w600)),
+                      Text("自動採点有効", style: TextStyle(color: Color(0xFF10B981), fontWeight: FontWeight.w600)),
                     ],
                   ),
                 ],
@@ -248,16 +255,19 @@ class HomeScreen extends ConsumerWidget {
                         launchUrl(Uri.parse(mission['pr_url']));
                       }
                     },
-                    child: const Text("GitHub"),
+                    child: const Text("GitHubを開く"),
                   ),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
                   child: ElevatedButton(
-                    onPressed: () async {
+                    onPressed: _isScoring ? null : () async {
+                      setState(() {
+                        _isScoring = true;
+                      });
                       try {
                         ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Scoring review...')),
+                          const SnackBar(content: Text('採点中...')),
                         );
                         await ref.read(apiServiceProvider).scoreReview(
                               owner,
@@ -267,18 +277,26 @@ class HomeScreen extends ConsumerWidget {
                         ref.invalidate(statsProvider);
                         if (context.mounted) {
                           ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text('Scoring completed!')),
+                            const SnackBar(content: Text('採点が完了しました！')),
                           );
                         }
                       } catch (e) {
                         if (context.mounted) {
                           ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(content: Text('Error: $e')),
+                            SnackBar(content: Text('エラー: $e')),
                           );
+                        }
+                      } finally {
+                        if (mounted) {
+                          setState(() {
+                            _isScoring = false;
+                          });
                         }
                       }
                     },
-                    child: const Text("Score Review"),
+                    child: _isScoring
+                        ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
+                        : const Text("手動で採点する"),
                   ),
                 ),
               ],
@@ -288,7 +306,7 @@ class HomeScreen extends ConsumerWidget {
               width: double.infinity,
               child: OutlinedButton.icon(
                 icon: const Icon(Icons.smart_toy_outlined),
-                label: const Text("Ask AI Assistant"),
+                label: const Text("AIアシスタントに質問する"),
                 style: OutlinedButton.styleFrom(
                   backgroundColor: const Color(0xFF0052FF).withOpacity(0.02),
                   side: const BorderSide(color: Color(0xFF0052FF), width: 1.5),
@@ -297,7 +315,11 @@ class HomeScreen extends ConsumerWidget {
                 onPressed: () {
                   Navigator.push(
                     context,
-                    MaterialPageRoute(builder: (_) => const AskAIScreen()),
+                    MaterialPageRoute(builder: (_) => AskAIScreen(
+                      owner: owner,
+                      repo: mission['repo'],
+                      prNumber: mission['pr_number'],
+                    )),
                   );
                 },
               ),

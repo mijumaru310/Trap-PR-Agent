@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/settings_provider.dart';
+import '../providers/api_provider.dart';
 
 class SettingsScreen extends ConsumerStatefulWidget {
   const SettingsScreen({super.key});
@@ -33,25 +34,47 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     super.dispose();
   }
 
-  void _saveSettings() {
-    ref.read(settingsProvider.notifier).saveSettings(
-          githubUsername: _githubUsernameController.text.trim().isEmpty ? 'mijumaru310' : _githubUsernameController.text.trim(),
+  bool _isSaving = false;
+
+  Future<void> _saveSettings() async {
+    setState(() {
+      _isSaving = true;
+    });
+
+    final username = _githubUsernameController.text.trim().isEmpty ? 'mijumaru310' : _githubUsernameController.text.trim();
+    String? avatarUrl;
+
+    try {
+      final userInfo = await ref.read(apiServiceProvider).getGitHubUserInfo(username);
+      avatarUrl = userInfo['avatar_url'];
+    } catch (e) {
+      // APIに失敗してもアバター取得失敗として無視し、設定は保存する
+    }
+
+    await ref.read(settingsProvider.notifier).saveSettings(
+          githubUsername: username,
           githubToken: _githubTokenController.text.trim(),
           aiProvider: _selectedProvider,
           aiApiKey: _aiApiKeyController.text.trim(),
+          githubAvatarUrl: avatarUrl,
         );
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Settings saved securely!')),
-    );
-    Navigator.pop(context);
+    if (mounted) {
+      setState(() {
+        _isSaving = false;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('設定を保存しました！')),
+      );
+      Navigator.pop(context);
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Settings'),
+        title: const Text('設定'),
         centerTitle: true,
       ),
       body: SingleChildScrollView(
@@ -73,12 +96,12 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                     children: [
                       Icon(Icons.shield_outlined, color: Color(0xFF0052FF), size: 24),
                       SizedBox(width: 12),
-                      Text('Security Notice', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 18, color: Color(0xFF0F172A))),
+                      Text('セキュリティに関する注意事項', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 18, color: Color(0xFF0F172A))),
                     ],
                   ),
                   SizedBox(height: 12),
                   Text(
-                    'These keys are stored securely on your device using encrypted storage. If left blank, the server will use its default environment variables.',
+                    'APIキーやトークンは、暗号化されたローカルストレージ（デバイス内）に安全に保存されます。空欄の場合、サーバーのデフォルトの環境変数が使用されます。',
                     style: TextStyle(color: Color(0xFF475569), height: 1.5),
                   ),
                 ],
@@ -87,14 +110,14 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             const SizedBox(height: 32),
             _buildTextField(
               controller: _githubUsernameController,
-              label: 'GitHub Username',
-              hint: 'e.g. octocat',
+              label: 'GitHub ユーザー名',
+              hint: '例: octocat',
               icon: Icons.person_outline,
             ),
             const SizedBox(height: 20),
             _buildTextField(
               controller: _githubTokenController,
-              label: 'GitHub Personal Access Token',
+              label: 'GitHub パーソナルアクセストークン (任意)',
               hint: 'ghp_...',
               icon: Icons.code,
               obscure: true,
@@ -103,7 +126,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             DropdownButtonFormField<String>(
               value: _selectedProvider,
               decoration: InputDecoration(
-                labelText: 'AI Provider',
+                labelText: 'AI プロバイダ',
                 labelStyle: const TextStyle(fontWeight: FontWeight.w600, color: Color(0xFF64748B)),
                 filled: true,
                 fillColor: Colors.white,
@@ -128,8 +151,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             const SizedBox(height: 20),
             _buildTextField(
               controller: _aiApiKeyController,
-              label: 'AI API Key',
-              hint: 'API key for the selected provider',
+              label: 'AI API キー (任意)',
+              hint: '選択したプロバイダのAPIキー',
               icon: Icons.vpn_key_outlined,
               obscure: true,
             ),
@@ -137,8 +160,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             SizedBox(
               width: double.infinity,
               child: ElevatedButton(
-                onPressed: _saveSettings,
-                child: const Text('Save Settings'),
+                onPressed: _isSaving ? null : _saveSettings,
+                child: _isSaving 
+                  ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
+                  : const Text('設定を保存'),
               ),
             ),
           ],

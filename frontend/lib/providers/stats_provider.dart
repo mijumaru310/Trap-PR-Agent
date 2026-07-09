@@ -5,5 +5,5 @@ import 'settings_provider.dart';
 final statsProvider = FutureProvider<Map<String, dynamic>>((ref) async {
   final apiService = ref.read(apiServiceProvider);
   final settings = ref.watch(settingsProvider);
-  return apiService.getUserStats(settings.githubUsername);
+  return apiService.getUserStats();
 });

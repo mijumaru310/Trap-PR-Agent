@@ -12,7 +12,7 @@ class ResultScreen extends StatelessWidget {
     final String feedback = result['feedback'] ?? 'No feedback provided.';
 
     return Scaffold(
-      appBar: AppBar(title: const Text("Review Result"), centerTitle: true),
+      appBar: AppBar(title: const Text("レビュー結果"), centerTitle: true),
       body: ListView(
         padding: const EdgeInsets.all(20),
         children: [
@@ -35,7 +35,7 @@ class ResultScreen extends StatelessWidget {
           ),
           Center(
             child: Text(
-              isCorrect ? "Excellent!" : "Needs Improvement",
+              isCorrect ? "素晴らしい！" : "もう少し頑張りましょう",
               style: TextStyle(
                 fontSize: 22,
                 color: isCorrect ? Colors.green : Colors.red,
@@ -52,7 +52,7 @@ class ResultScreen extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   const Text(
-                    "Gemini Feedback",
+                    "AI フィードバック",
                     style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
                   ),
                   const SizedBox(height: 15),
@@ -70,7 +70,7 @@ class ResultScreen extends StatelessWidget {
             height: 55,
             child: ElevatedButton.icon(
               icon: const Icon(Icons.home),
-              label: const Text("Back to Home", style: TextStyle(fontSize: 18)),
+              label: const Text("ホームに戻る", style: TextStyle(fontSize: 18)),
               onPressed: () {
                 Navigator.popUntil(context, (route) => route.isFirst);
               },
