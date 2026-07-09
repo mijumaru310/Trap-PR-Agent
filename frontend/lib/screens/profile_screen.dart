@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/stats_provider.dart';
+import '../providers/settings_provider.dart';
 
 class ProfileScreen extends ConsumerWidget {
   const ProfileScreen({super.key});
@@ -8,17 +9,20 @@ class ProfileScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final statsAsyncValue = ref.watch(statsProvider);
+    final settings = ref.watch(settingsProvider);
 
     return Scaffold(
-      appBar: AppBar(title: const Text("Profile"), centerTitle: true),
+      appBar: AppBar(title: const Text("プロフィール"), centerTitle: true),
       body: statsAsyncValue.when(
         data: (data) {
           final int totalGenerated = data['total_generated_prs'] ?? 0;
           final int solvedCount = data['solved_count'] ?? 0;
           final double accuracy = (data['accuracy'] ?? 0).toDouble();
 
-          // Calculate some arbitrary XP for fun based on solved count
-          final int xp = solvedCount * 120;
+          final int totalScore = data['total_score'] ?? 0;
+
+          // Calculate XP as total_score * 10
+          final int xp = totalScore * 10;
 
           return ListView(
             padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
@@ -39,10 +43,15 @@ class ProfileScreen extends ConsumerWidget {
                         shape: BoxShape.circle,
                         border: Border.all(color: const Color(0xFF0052FF), width: 2),
                       ),
-                      child: const CircleAvatar(
+                      child: CircleAvatar(
                         radius: 45,
-                        backgroundColor: Color(0xFFF8FAFC),
-                        child: Icon(Icons.person_outline, size: 40, color: Color(0xFF0052FF)),
+                        backgroundColor: const Color(0xFFF8FAFC),
+                        backgroundImage: settings.githubAvatarUrl != null
+                            ? NetworkImage(settings.githubAvatarUrl!)
+                            : null,
+                        child: settings.githubAvatarUrl == null
+                            ? const Icon(Icons.person_outline, size: 40, color: Color(0xFF0052FF))
+                            : null,
                       ),
                     ),
                     const SizedBox(height: 16),
@@ -64,38 +73,38 @@ class ProfileScreen extends ConsumerWidget {
               ),
               const SizedBox(height: 32),
               const Text(
-                "Overall Statistics",
+                "全体統計",
                 style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800, letterSpacing: -0.5, color: Color(0xFF0F172A)),
               ),
               const SizedBox(height: 16),
               Row(
                 children: [
-                  Expanded(child: statCard(Icons.workspace_premium_outlined, "XP", xp.toString(), const Color(0xFFF59E0B))),
+                  Expanded(child: statCard(Icons.workspace_premium_outlined, "経験値", xp.toString(), const Color(0xFFF59E0B))),
                   const SizedBox(width: 12),
-                  Expanded(child: statCard(Icons.analytics_outlined, "Accuracy", "$accuracy%", const Color(0xFF0052FF))),
+                  Expanded(child: statCard(Icons.analytics_outlined, "正答率", "$accuracy%", const Color(0xFF0052FF))),
                 ],
               ),
               const SizedBox(height: 12),
               Row(
                 children: [
-                  Expanded(child: statCard(Icons.task_alt_outlined, "Solved", solvedCount.toString(), const Color(0xFF10B981))),
+                  Expanded(child: statCard(Icons.task_alt_outlined, "解決済", solvedCount.toString(), const Color(0xFF10B981))),
                   const SizedBox(width: 12),
-                  Expanded(child: statCard(Icons.format_list_numbered_outlined, "Total PRs", totalGenerated.toString(), const Color(0xFF8B5CF6))),
+                  Expanded(child: statCard(Icons.format_list_numbered_outlined, "合計PR", totalGenerated.toString(), const Color(0xFF8B5CF6))),
                 ],
               ),
               const SizedBox(height: 32),
               const Text(
-                "Skill Analysis",
+                "スキル分析",
                 style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800, letterSpacing: -0.5, color: Color(0xFF0F172A)),
               ),
               const SizedBox(height: 16),
-              skillTile("Code Review", accuracy.toInt(), const Color(0xFF10B981)),
-              skillTile("Security", (accuracy * 0.9).toInt(), const Color(0xFF0052FF)),
+              skillTile("コードレビュー", accuracy.toInt(), const Color(0xFF10B981)),
+              skillTile("セキュリティ", (accuracy * 0.9).toInt(), const Color(0xFF0052FF)),
             ],
           );
         },
         loading: () => const Center(child: CircularProgressIndicator()),
-        error: (err, stack) => Center(child: Text('Error: $err')),
+        error: (err, stack) => Center(child: Text('エラー: $err')),
       ),
     );
   }

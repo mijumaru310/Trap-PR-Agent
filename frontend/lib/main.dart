@@ -4,16 +4,21 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'screens/home_screen.dart';
 import 'screens/history_screen.dart';
 import 'screens/profile_screen.dart';
+import 'screens/onboarding_screen.dart';
+import 'providers/settings_provider.dart';
 
 void main() {
   runApp(const ProviderScope(child: TrapPRAgentApp()));
 }
 
-class TrapPRAgentApp extends StatelessWidget {
+class TrapPRAgentApp extends ConsumerWidget {
   const TrapPRAgentApp({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final settings = ref.watch(settingsProvider);
+    final homeWidget = settings.isOnboarded ? const MainPage() : const OnboardingScreen();
+
     return MaterialApp(
       title: 'Trap-PR Agent',
       debugShowCheckedModeBanner: false,
@@ -87,7 +92,7 @@ class TrapPRAgentApp extends StatelessWidget {
         ),
       ),
 
-      home: const MainPage(),
+      home: homeWidget,
     );
   }
 }
@@ -127,15 +132,15 @@ class _MainPageState extends State<MainPage> {
           NavigationDestination(
             icon: Icon(Icons.home_outlined),
             selectedIcon: Icon(Icons.home),
-            label: "Home",
+            label: "ホーム",
           ),
 
-          NavigationDestination(icon: Icon(Icons.history), label: "History"),
+          NavigationDestination(icon: Icon(Icons.history), label: "履歴"),
 
           NavigationDestination(
             icon: Icon(Icons.person_outline),
             selectedIcon: Icon(Icons.person),
-            label: "Profile",
+            label: "プロフィール",
           ),
         ],
       ),

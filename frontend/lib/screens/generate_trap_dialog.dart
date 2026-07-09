@@ -96,6 +96,36 @@ class _GenerateTrapDialogState extends ConsumerState<GenerateTrapDialog> {
   }
 
   Future<void> _generate() async {
+    final settings = ref.read(settingsProvider);
+    final targetOwner = _ownerController.text.trim();
+
+    if (targetOwner != settings.githubUsername) {
+      final confirm = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('⚠️ リポジトリの確認'),
+          content: Text(
+            '設定されたGitHubユーザー名（${settings.githubUsername}）とは異なるリポジトリ（$targetOwner）にPRを作成しようとしています。続行しますか？',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('キャンセル'),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(context, true),
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+              child: const Text('作成する', style: TextStyle(color: Colors.white)),
+            ),
+          ],
+        ),
+      );
+
+      if (confirm != true) {
+        return;
+      }
+    }
+
     setState(() {
       _isLoading = true;
     });
@@ -103,7 +133,7 @@ class _GenerateTrapDialogState extends ConsumerState<GenerateTrapDialog> {
     try {
       final apiService = ref.read(apiServiceProvider);
       await apiService.generateAutoTrapPR(
-        _ownerController.text.trim(),
+        targetOwner,
         _repoController.text.trim(),
         _pathController.text.trim(),
       );
@@ -111,14 +141,14 @@ class _GenerateTrapDialogState extends ConsumerState<GenerateTrapDialog> {
       if (mounted) {
         Navigator.pop(context);
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Trap PR generated! Auto-scoring is active.')),
+          const SnackBar(content: Text('罠PRを生成しました！自動採点が有効です。')),
         );
         ref.invalidate(statsProvider);
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e')),
+          SnackBar(content: Text('エラー: $e')),
         );
       }
     } finally {
@@ -133,24 +163,24 @@ class _GenerateTrapDialogState extends ConsumerState<GenerateTrapDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: const Text('Generate Trap PR'),
+      title: const Text('罠PR生成'),
       content: SingleChildScrollView(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             const Text(
-              'Select repository and file path to generate a PR.',
+              'リポジトリと対象ファイル（任意）を選択してください。',
               style: TextStyle(color: Colors.grey, fontSize: 12),
             ),
             const SizedBox(height: 15),
             TextField(
               controller: _ownerController,
               decoration: InputDecoration(
-                labelText: 'Owner',
+                labelText: 'Owner (ユーザー/組織名)',
                 suffixIcon: IconButton(
                   icon: const Icon(Icons.refresh),
                   onPressed: () => _loadRepos(_ownerController.text.trim()),
-                  tooltip: 'Reload Repos',
+                  tooltip: 'リポジトリを再読み込み',
                 ),
               ),
               onSubmitted: (value) => _loadRepos(value.trim()),
@@ -160,7 +190,7 @@ class _GenerateTrapDialogState extends ConsumerState<GenerateTrapDialog> {
                 ? const LinearProgressIndicator()
                 : DropdownMenu<String>(
                     controller: _repoController,
-                    label: const Text('Repo'),
+                    label: const Text('リポジトリ'),
                     expandedInsets: EdgeInsets.zero,
                     enableFilter: true,
                     dropdownMenuEntries: _repos.map((repo) {
@@ -177,7 +207,7 @@ class _GenerateTrapDialogState extends ConsumerState<GenerateTrapDialog> {
                 ? const LinearProgressIndicator()
                 : DropdownMenu<String>(
                     controller: _pathController,
-                    label: const Text('File Path (Optional)'),
+                    label: const Text('ファイルパス (任意: 未指定なら新規作成)'),
                     expandedInsets: EdgeInsets.zero,
                     enableFilter: true,
                     dropdownMenuEntries: _files.map((file) {
@@ -190,13 +220,13 @@ class _GenerateTrapDialogState extends ConsumerState<GenerateTrapDialog> {
       actions: [
         TextButton(
           onPressed: _isLoading ? null : () => Navigator.pop(context),
-          child: const Text('Cancel'),
+          child: const Text('キャンセル'),
         ),
         ElevatedButton(
           onPressed: _isLoading ? null : _generate,
           child: _isLoading
               ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
-              : const Text('Generate'),
+              : const Text('生成する'),
         ),
       ],
     );

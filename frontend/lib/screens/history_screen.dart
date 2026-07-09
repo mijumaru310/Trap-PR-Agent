@@ -10,26 +10,26 @@ class HistoryScreen extends ConsumerWidget {
     final statsAsyncValue = ref.watch(statsProvider);
 
     return Scaffold(
-      appBar: AppBar(title: const Text("History"), centerTitle: true),
+      appBar: AppBar(title: const Text("履歴"), centerTitle: true),
       body: statsAsyncValue.when(
         data: (data) {
           final history = data['history'] as List<dynamic>? ?? [];
           final pastMissions = history.where((item) => item['status'] != 'pending').toList();
 
           if (pastMissions.isEmpty) {
-            return const Center(child: Text("No review history yet."));
+            return const Center(child: Text("レビュー履歴はまだありません。"));
           }
 
           return ListView(
             padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
             children: [
               const Text(
-                "Review History",
+                "レビュー履歴",
                 style: TextStyle(fontSize: 28, fontWeight: FontWeight.w800, letterSpacing: -0.5, color: Color(0xFF0F172A)),
               ),
               const SizedBox(height: 8),
               const Text(
-                "Your previous review missions.",
+                "過去に取り組んだ罠PRミッションの一覧です。",
                 style: TextStyle(color: Color(0xFF64748B), fontSize: 16),
               ),
               const SizedBox(height: 24),
@@ -94,7 +94,7 @@ class HistoryScreen extends ConsumerWidget {
           );
         },
         loading: () => const Center(child: CircularProgressIndicator()),
-        error: (err, stack) => Center(child: Text('Error: $err')),
+        error: (err, stack) => Center(child: Text('エラー: $err')),
       ),
     );
   }

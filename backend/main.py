@@ -197,6 +197,7 @@ class AutoTrapPRRequest(BaseModel):
     path: Optional[str] = None # ターゲットにする既存ファイルのパス。省略時はAIが新規ファイルを作成する
     language: Optional[str] = None  # プログラミング言語（省略時は拡張子から自動判定）
     branch_name: Optional[str] = None  # 作成するブランチ名（省略時は自動生成）
+    creator_username: str  # PRを作成したユーザーのGitHub Username
 
 class AutoTrapPRResponse(BaseModel):
     """フロントエンドや記録用に返すレスポンス"""
@@ -209,6 +210,15 @@ class AutoTrapPRResponse(BaseModel):
     trap_explanation: str # 罠の解説（裏側のデータベース記録用）
     detected_language: str # 自動検出された言語
     fact_check_passed: bool # ファクトチェック結果
+
+class AskAIRequest(BaseModel):
+    owner: str
+    repo: str
+    pr_number: int
+    question: str
+
+class AskAIResponse(BaseModel):
+    answer: str
 
 def _fact_check_trap_code(provider: str, api_key: str, trap_code: str, trap_explanation: str, language: str) -> dict:
     """
@@ -278,6 +288,30 @@ def auto_trap_pr(owner: str, repo: str, req: AutoTrapPRRequest, request: Request
         else:
             is_new_file = True
 
+        project_context = ""
+        if is_new_file:
+            try:
+                root_contents = repository.get_contents("")
+                context_texts = []
+                count = 0
+                for content in root_contents:
+                    if count >= 3:
+                        break
+                    if content.type == "file":
+                        _, ext = os.path.splitext(content.name)
+                        if ext.lower() in [".py", ".js", ".ts", ".jsx", ".tsx", ".java", ".go", ".rb", ".php", ".cs", ".cpp", ".dart", ".rs", ".swift"]:
+                            try:
+                                decoded = content.decoded_content.decode("utf-8")
+                                lines = decoded.splitlines()[:50]
+                                context_texts.append(f"--- {content.path} ---\n" + "\n".join(lines))
+                                count += 1
+                            except:
+                                pass
+                if context_texts:
+                    project_context = "【プロジェクトの既存コード（一部参考）】\n" + "\n".join(context_texts)
+            except Exception as e:
+                print(f"Failed to fetch context: {e}")
+
         # ----------------------------------------------------
         # STEP 1.5: 言語自動判定
         # ----------------------------------------------------
@@ -312,7 +346,9 @@ def auto_trap_pr(owner: str, repo: str, req: AutoTrapPRRequest, request: Request
                 "- trap_explanation にのみ罠の詳細を記述してください。\n"
                 "出力は必ず指定されたJSONスキーマに従ってください。"
             )
-            user_prompt = "新しい機能のためのファイルと罠コードを生成してください。"
+            user_prompt = "新しい機能のためのファイルと罠コードを生成してください。\n"
+            if project_context:
+                user_prompt += f"\n以下の既存コードのコーディングスタイルやプロジェクト構造を参考に、関連性のある自然な新機能を考案してください。\n{project_context}"
         else:
             system_instruction = (
                 "あなたは悪意ある開発者を演じるAIエージェントであり、同時に優秀なプログラミング講師です。\n"
@@ -438,6 +474,7 @@ def auto_trap_pr(owner: str, repo: str, req: AutoTrapPRRequest, request: Request
         trap_data = {
             "owner": owner,
             "repo": repo,
+            "creator_username": req.creator_username,
             "pr_number": pr.number,
             "pr_url": pr.html_url,
             "feature_proposal": ai_data["feature_proposal"],
@@ -461,7 +498,7 @@ def auto_trap_pr(owner: str, repo: str, req: AutoTrapPRRequest, request: Request
         # ----------------------------------------------------
         watcher_thread = threading.Thread(
             target=_poll_for_comments,
-            args=(owner, repo, pr.number, github_token, provider, api_key),
+            args=(owner, repo, pr.number, github_token, provider, api_key, req.creator_username),
             daemon=True,  # メインプロセス終了時に自動停止
         )
         watcher_thread.start()
@@ -484,6 +521,20 @@ def auto_trap_pr(owner: str, repo: str, req: AutoTrapPRRequest, request: Request
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"全自動PR生成に失敗しました: {str(e)}")
+
+@app.get("/api/v1/github/user/{username}")
+def get_github_user_info(username: str, request: Request):
+    """GitHubのユーザー情報（アバターアイコンなど）を取得する"""
+    g = get_github_client(dict(request.headers))
+    try:
+        user = g.get_user(username)
+        return {
+            "username": user.login,
+            "name": user.name,
+            "avatar_url": user.avatar_url,
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"ユーザー情報の取得に失敗しました: {str(e)}")
 
 @app.get("/api/v1/github/repos/{owner}")
 def get_github_repos(owner: str, request: Request):
@@ -586,7 +637,9 @@ def _execute_scoring(owner: str, repo: str, pr_number: int, github_token: str = 
         "ユーザー（開発者）がコードレビューとして残したコメントを読み、彼らが『仕込まれた罠（脆弱性や欠陥）』を正しく見抜けきれているかを評価してください。\n"
         "単に『バグがある』という指摘だけでなく、具体的にどの部分がどう危険か（例: ゼロ除算、SQLインジェクション、バックドア等）を言い当てているかを重視してください。\n"
         "出力は必ず指定されたJSONスキーマ（is_correct, score, feedback）に従ってください。\n"
-        "feedback内では、ユーザーの指摘の良い点、足りない点をレビューし、最後に正解（罠の解説）を優しく教えてあげてください。"
+        "【必須事項】\n"
+        "feedback内には、「どこに（ファイル名や該当箇所）」「どのようなミス（脆弱性やバグの内容）があったか」を明確に記載してください。\n"
+        "また、ユーザーの指摘の良い点、足りない点をレビューし、最後に正解（罠の解説）を優しく教えてあげてください。"
     )
 
     user_prompt = f"""
@@ -663,7 +716,7 @@ def score_review(owner: str, repo: str, pr_number: int, request: Request):
 # コメント自動監視（ポーリング）
 # =============================================================================
 
-def _poll_for_comments(owner: str, repo: str, pr_number: int, interval: int = 30, max_polls: int = 120):
+def _poll_for_comments(owner: str, repo: str, pr_number: int, github_token: str, provider: str, api_key: str, creator_username: str, interval: int = 10, max_polls: int = 120):
     """
     バックグラウンドスレッドでPRのコメントをポーリングし、新規コメントを検知したら自動で採点する。
     interval秒ごとにチェックし、最大max_polls回（デフォルト1時間）で停止。
@@ -705,18 +758,20 @@ def _poll_for_comments(owner: str, repo: str, pr_number: int, interval: int = 30
             repository = g.get_repo(repo_name)
             pull_request = repository.get_pull(pr_number)
             
-            # 通常コメント + コードレビューコメント（自動採点結果は除外）
+            # 通常コメント + コードレビューコメント（自動採点結果は除外、creator_username以外のコメントは除外）
             has_new_comments = False
             for comment in pull_request.get_issue_comments():
                 if not comment.body.startswith("## 🤖 Trap-PR Agent"):
-                    has_new_comments = True
-                    break
+                    if comment.user.login == creator_username:
+                        has_new_comments = True
+                        break
             
             if not has_new_comments:
                 for comment in pull_request.get_comments():
                     if not comment.body.startswith("## 🤖 Trap-PR Agent"):
-                        has_new_comments = True
-                        break
+                        if comment.user.login == creator_username:
+                            has_new_comments = True
+                            break
             
             if has_new_comments:
                 # コメントが見つかったら採点実行
@@ -734,6 +789,68 @@ def _poll_for_comments(owner: str, repo: str, pr_number: int, interval: int = 30
     # 監視終了
     active_watchers.pop(watcher_key, None)
     print(f"[Watcher] {watcher_key} - polling ended")
+    return {"status": "scoring_completed"}
+
+
+@app.post("/api/v1/agent/ask-ai", response_model=AskAIResponse)
+def ask_ai(req: AskAIRequest, request: Request):
+    """
+    指定されたPRのコンテキスト（コードと罠の解説）をもとにAIに質問する
+    """
+    try:
+        provider, api_key = get_ai_credentials(dict(request.headers))
+        
+        # FirestoreからPRのコンテキストを取得
+        doc_id = f"{req.owner}_{req.repo}_{req.pr_number}"
+        doc = db.collection("traps").document(doc_id).get()
+        
+        if not doc.exists:
+            raise HTTPException(status_code=404, detail="PR情報が見つかりません。")
+        
+        trap_data = doc.to_dict()
+        
+        system_instruction = (
+            "あなたはTrap-PR AgentのアシスタントAIです。\n"
+            "ユーザーは現在、以下のコードレビュー問題に挑戦中です。\n"
+            "ユーザーからの質問に対して、適切な回答を提示してください。\n\n"
+            "【絶対に守るべきルール】\n"
+            "- 罠の「直接的な答え」を絶対に教えないでください。\n"
+            "- ユーザーが自分で罠を見つけられるように、ヒントや考え方のガイダンスを提供してください。\n"
+            "- コードの動作や一般的なセキュリティのベストプラクティスについては回答して構いません。\n"
+            "- ユーザーの回答が間違っている場合、「それは間違いです。なぜなら...」と優しく訂正してください。"
+        )
+        
+        user_prompt = f"""
+        【現在の状況】
+        罠コード:
+        ```
+        {trap_data.get('trap_code', '')}
+        ```
+        
+        【正解（裏の文脈であり、ユーザーには直接教えないこと）】
+        {trap_data.get('trap_explanation', '')}
+        
+        【ユーザーからの質問】
+        {req.question}
+        """
+        
+        from ai_service import _get_ai_client
+        client = _get_ai_client(provider, api_key)
+        
+        # Instructor等による構造化は不要なので、通常のテキスト生成を行う
+        # 簡易的に同じ関数を使って { "answer": "..." } スキーマで返させる
+        response_obj = generate_structured_response(
+            provider=provider,
+            api_key=api_key,
+            system_instruction=system_instruction,
+            user_prompt=user_prompt,
+            response_schema=AskAIResponse,
+            temperature=0.7
+        )
+        return response_obj.model_dump()
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"AIへの質問に失敗しました: {str(e)}")
 
 
 @app.post("/api/v1/agent/start-watcher/{owner}/{repo}/{pr_number}")
@@ -816,6 +933,11 @@ async def github_webhook(request: Request, background_tasks: BackgroundTasks):
     trap_data = doc.to_dict()
     if trap_data.get("status") in ("solved", "failed"):
         return {"status": "ignored", "reason": "already_scored"}
+        
+    creator_username = trap_data.get("creator_username")
+    comment_user = payload.get("comment", {}).get("user", {}).get("login", "")
+    if creator_username and comment_user != creator_username:
+        return {"status": "ignored", "reason": "comment_not_by_creator"}
     
     # バックグラウンドで採点を実行
     background_tasks.add_task(_execute_scoring, owner, repo, pr_number)
@@ -827,19 +949,20 @@ async def github_webhook(request: Request, background_tasks: BackgroundTasks):
 # 統計情報
 # =============================================================================
 
-@app.get("/api/v1/records/stats/{owner}")
-def get_user_stats(owner: str):
+@app.get("/api/v1/records/stats/{creator_username}")
+def get_user_stats(creator_username: str):
     """
-    指定されたユーザー（リポジトリ所有者）の累計罠PR数、解決数、Accuracy（正解率）を計算して返す
+    指定されたユーザー（作成者）の累計罠PR数、解決数、Accuracy（正解率）、累計スコアを計算して返す
     """
     try:
-        # 指定したownerの罠データを全件取得
-        docs = db.collection("traps").where("owner", "==", owner).stream()
+        # 指定したcreator_usernameの罠データを全件取得
+        docs = db.collection("traps").where("creator_username", "==", creator_username).stream()
         
         total_prs = 0
         solved_count = 0
         failed_count = 0
         pending_count = 0
+        total_score = 0
         history = []
         
         for doc in docs:
@@ -853,6 +976,9 @@ def get_user_stats(owner: str):
                 failed_count += 1
             else:
                 pending_count += 1
+                
+            if data.get("score"):
+                total_score += data["score"]
                 
             # 履歴一覧用のコンパクトなデータ構造
             history.append({
@@ -870,12 +996,13 @@ def get_user_stats(owner: str):
         accuracy = (solved_count / reviewed_total * 100) if reviewed_total > 0 else 0.0
         
         return {
-            "owner": owner,
+            "owner": creator_username,
             "total_generated_prs": total_prs,  # 累計生成PR数
             "solved_count": solved_count,       # 解決数
             "failed_count": failed_count,       # 不合格数
             "pending_count": pending_count,     # 挑戦中数
             "accuracy": round(accuracy, 2),     # 累計Accuracy (%)
+            "total_score": total_score,         # 累計スコア
             "history": sorted(history, key=lambda x: x["pr_number"], reverse=True) # 新しい順
         }
         

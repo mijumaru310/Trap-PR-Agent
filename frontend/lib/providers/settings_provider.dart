@@ -1,17 +1,26 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
+const String _keyGithubUsername = 'githubUsername';
+const String _keyGithubToken = 'githubToken';
+const String _keyAiProvider = 'aiProvider';
+const String _keyAiApiKey = 'aiApiKey';
+
 class AppSettings {
   final String githubUsername;
   final String githubToken;
   final String aiProvider;
   final String aiApiKey;
+  final String? githubAvatarUrl;
+  final bool isOnboarded;
 
   AppSettings({
     this.githubUsername = 'mijumaru310',
     this.githubToken = '',
     this.aiProvider = 'gemini',
     this.aiApiKey = '',
+    this.githubAvatarUrl,
+    this.isOnboarded = false,
   });
 
   AppSettings copyWith({
@@ -19,12 +28,16 @@ class AppSettings {
     String? githubToken,
     String? aiProvider,
     String? aiApiKey,
+    String? githubAvatarUrl,
+    bool? isOnboarded,
   }) {
     return AppSettings(
       githubUsername: githubUsername ?? this.githubUsername,
       githubToken: githubToken ?? this.githubToken,
       aiProvider: aiProvider ?? this.aiProvider,
       aiApiKey: aiApiKey ?? this.aiApiKey,
+      githubAvatarUrl: githubAvatarUrl ?? this.githubAvatarUrl,
+      isOnboarded: isOnboarded ?? this.isOnboarded,
     );
   }
 }
@@ -39,16 +52,20 @@ class SettingsNotifier extends Notifier<AppSettings> {
   }
 
   Future<void> _loadSettings() async {
-    final username = await _storage.read(key: 'githubUsername') ?? 'mijumaru310';
-    final token = await _storage.read(key: 'githubToken') ?? '';
-    final provider = await _storage.read(key: 'aiProvider') ?? 'gemini';
-    final apiKey = await _storage.read(key: 'aiApiKey') ?? '';
+    final username = await _storage.read(key: _keyGithubUsername) ?? 'mijumaru310';
+    final token = await _storage.read(key: _keyGithubToken) ?? '';
+    final provider = await _storage.read(key: _keyAiProvider) ?? 'gemini';
+    final apiKey = await _storage.read(key: _keyAiApiKey) ?? '';
+    final avatar = await _storage.read(key: 'github_avatar_url');
+    final onboardedStr = await _storage.read(key: 'is_onboarded');
 
     state = AppSettings(
       githubUsername: username,
       githubToken: token,
       aiProvider: provider,
       aiApiKey: apiKey,
+      githubAvatarUrl: avatar,
+      isOnboarded: onboardedStr == 'true',
     );
   }
 
@@ -57,17 +74,27 @@ class SettingsNotifier extends Notifier<AppSettings> {
     required String githubToken,
     required String aiProvider,
     required String aiApiKey,
+    String? githubAvatarUrl,
+    bool? isOnboarded,
   }) async {
-    await _storage.write(key: 'githubUsername', value: githubUsername);
-    await _storage.write(key: 'githubToken', value: githubToken);
-    await _storage.write(key: 'aiProvider', value: aiProvider);
-    await _storage.write(key: 'aiApiKey', value: aiApiKey);
+    await _storage.write(key: _keyGithubUsername, value: githubUsername);
+    await _storage.write(key: _keyGithubToken, value: githubToken);
+    await _storage.write(key: _keyAiProvider, value: aiProvider);
+    await _storage.write(key: _keyAiApiKey, value: aiApiKey);
+    if (githubAvatarUrl != null) {
+      await _storage.write(key: 'github_avatar_url', value: githubAvatarUrl);
+    }
+    if (isOnboarded != null) {
+      await _storage.write(key: 'is_onboarded', value: isOnboarded.toString());
+    }
 
-    state = AppSettings(
+    state = state.copyWith(
       githubUsername: githubUsername,
       githubToken: githubToken,
       aiProvider: aiProvider,
       aiApiKey: aiApiKey,
+      githubAvatarUrl: githubAvatarUrl,
+      isOnboarded: isOnboarded,
     );
   }
 }
