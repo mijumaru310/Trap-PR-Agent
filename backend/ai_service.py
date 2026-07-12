@@ -43,10 +43,10 @@ def generate_structured_response(
         return response_schema.model_validate_json(response.text)
         
     elif provider == "vertexai":
-        location = os.getenv("GCP_LOCATION", "asia-northeast1")
+        location = os.getenv("GCP_LOCATION", "us-central1")
         client = genai.Client(vertexai=True, location=location)
         response = client.models.generate_content(
-            model='gemini-1.5-flash',
+            model='gemini-1.5-flash-001',
             contents=user_prompt,
             config=genai_types.GenerateContentConfig(
                 system_instruction=system_instruction,
