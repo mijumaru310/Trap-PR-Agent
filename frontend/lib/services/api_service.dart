@@ -1,4 +1,5 @@
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 import 'dart:developer' as developer;
 
 class ApiService {
@@ -11,7 +12,7 @@ class ApiService {
     required String aiProvider,
     required String aiApiKey,
   }) : _dio = Dio(BaseOptions(
-          baseUrl: 'http://127.0.0.1:8000/api/v1',
+          baseUrl: kReleaseMode ? '/api/v1' : 'http://127.0.0.1:8000/api/v1',
           connectTimeout: const Duration(seconds: 15),
           receiveTimeout: const Duration(seconds: 120),
           headers: {
