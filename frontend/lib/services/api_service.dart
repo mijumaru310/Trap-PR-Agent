@@ -127,4 +127,15 @@ class ApiService {
       rethrow;
     }
   }
+
+  // Get AI Chat History
+  Future<Map<String, dynamic>> getAskAIHistory(String owner, String repo, int prNumber) async {
+    try {
+      final response = await _dio.get('/agent/ask-ai/$owner/$repo/$prNumber');
+      return response.data;
+    } catch (e) {
+      developer.log('Error fetching AI history: $e');
+      rethrow;
+    }
+  }
 }

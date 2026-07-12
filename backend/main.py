@@ -39,9 +39,17 @@ def get_github_client(request_headers: dict) -> Github:
     return Github(auth=Auth.Token(token))
 
 # Firebaseの初期化
-# backend/firebase-key.json を読み込みます
-cred = credentials.Certificate("firebase-key.json")
-firebase_admin.initialize_app(cred)
+# 環境変数 FIREBASE_KEY_PATH があればそのパスを使用、なければデフォルトの "firebase-key.json"
+firebase_key_path = os.getenv("FIREBASE_KEY_PATH", "firebase-key.json")
+
+if os.path.exists(firebase_key_path):
+    # Secret ManagerのボリュームマウントやローカルのJSONファイルを読み込む場合
+    cred = credentials.Certificate(firebase_key_path)
+    firebase_admin.initialize_app(cred)
+else:
+    # Cloud Run環境等でGoogle Cloudのデフォルトサービスアカウントを使用する場合
+    firebase_admin.initialize_app()
+
 
 # Firestoreクライアントの取得
 db = firestore.client()
@@ -217,8 +225,12 @@ class AskAIRequest(BaseModel):
     pr_number: int
     question: str
 
+class AskAILLMResponse(BaseModel):
+    answer: str
+
 class AskAIResponse(BaseModel):
     answer: str
+    remaining_count: int
 
 def _fact_check_trap_code(provider: str, api_key: str, trap_code: str, trap_explanation: str, language: str) -> dict:
     """
@@ -808,12 +820,22 @@ def ask_ai(req: AskAIRequest, request: Request):
         
         # FirestoreからPRのコンテキストを取得
         doc_id = f"{req.owner}_{req.repo}_{req.pr_number}"
-        doc = db.collection("traps").document(doc_id).get()
+        doc_ref = db.collection("traps").document(doc_id)
+        doc = doc_ref.get()
         
         if not doc.exists:
             raise HTTPException(status_code=404, detail="PR情報が見つかりません。")
         
         trap_data = doc.to_dict()
+        
+        ask_ai_count = trap_data.get("ask_ai_count", 0)
+        if ask_ai_count >= 3:
+            return AskAIResponse(
+                answer="このPRでの質問回数の上限（3回）に達しました。これ以上質問することはできません。",
+                remaining_count=0
+            )
+        
+        ask_ai_history = trap_data.get("ask_ai_history", [])
         
         system_instruction = (
             "あなたはTrap-PR AgentのアシスタントAIです。\n"
@@ -826,6 +848,11 @@ def ask_ai(req: AskAIRequest, request: Request):
             "- ユーザーの回答が間違っている場合、「それは間違いです。なぜなら...」と優しく訂正してください。"
         )
         
+        history_text = ""
+        for msg in ask_ai_history:
+            role_name = "ユーザー" if msg["role"] == "user" else "AI"
+            history_text += f"{role_name}: {msg['text']}\n"
+            
         user_prompt = f"""
         【現在の状況】
         罠コード:
@@ -835,6 +862,9 @@ def ask_ai(req: AskAIRequest, request: Request):
         
         【正解（裏の文脈であり、ユーザーには直接教えないこと）】
         {trap_data.get('trap_explanation', '')}
+        
+        【これまでの会話】
+        {history_text}
         
         【ユーザーからの質問】
         {req.question}
@@ -847,14 +877,46 @@ def ask_ai(req: AskAIRequest, request: Request):
             api_key=api_key,
             system_instruction=system_instruction,
             user_prompt=user_prompt,
-            response_schema=AskAIResponse,
-            temperature=0.7
+            response_schema=AskAILLMResponse,
         )
-        return response_obj.model_dump()
+        
+        new_count = ask_ai_count + 1
+        
+        ask_ai_history.append({"role": "user", "text": req.question})
+        ask_ai_history.append({"role": "ai", "text": response_obj.answer})
+        
+        doc_ref.update({
+            "ask_ai_count": new_count,
+            "ask_ai_history": ask_ai_history
+        })
+        
+        return AskAIResponse(
+            answer=response_obj.answer,
+            remaining_count=3 - new_count
+        ).model_dump()
         
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"AIへの質問に失敗しました: {str(e)}")
 
+
+@app.get("/api/v1/agent/ask-ai/{owner}/{repo}/{pr_number}")
+def get_ask_ai_history(owner: str, repo: str, pr_number: int):
+    """
+    指定されたPRのAIへの質問履歴と残り回数を取得する
+    """
+    doc_id = f"{owner}_{repo}_{pr_number}"
+    doc = db.collection("traps").document(doc_id).get()
+    if not doc.exists:
+        raise HTTPException(status_code=404, detail="PR情報が見つかりません。")
+    
+    trap_data = doc.to_dict()
+    history = trap_data.get("ask_ai_history", [])
+    ask_ai_count = trap_data.get("ask_ai_count", 0)
+    
+    return {
+        "messages": history,
+        "remaining_count": max(0, 3 - ask_ai_count)
+    }
 
 @app.post("/api/v1/agent/start-watcher/{owner}/{repo}/{pr_number}")
 def start_watcher(owner: str, repo: str, pr_number: int):

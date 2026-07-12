@@ -84,7 +84,10 @@ def get_ai_credentials(request_headers: dict) -> tuple[str, str]:
     
     if not api_key:
         if provider == "gemini":
-            api_key = os.getenv("GEMINI_API_KEY")
+            import random
+            gemini_keys = [v for k, v in os.environ.items() if k.startswith("GEMINI_API") and v.strip()]
+            if gemini_keys:
+                api_key = random.choice(gemini_keys)
         elif provider == "openai":
             api_key = os.getenv("OPENAI_API_KEY")
         elif provider == "anthropic":
