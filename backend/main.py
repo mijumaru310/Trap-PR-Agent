@@ -1091,6 +1091,12 @@ def serve_flutter_app(catchall: str):
     file_path = os.path.join("static", catchall)
     if os.path.isfile(file_path):
         return FileResponse(file_path)
+        
+    # 要求されたパスに拡張子が含まれている場合（例: .json, .js, .png）は、
+    # index.htmlにフォールバックさせず、ファイルが存在しないエラー（404）にする
+    _, ext = os.path.splitext(catchall)
+    if ext:
+        raise HTTPException(status_code=404, detail=f"File not found: {catchall}")
     
     index_path = os.path.join("static", "index.html")
     if os.path.isfile(index_path):
