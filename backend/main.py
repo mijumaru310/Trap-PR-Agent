@@ -450,13 +450,13 @@ def auto_trap_pr(owner: str, repo: str, req: AutoTrapPRRequest, request: Request
             pr_title = f"[Trap Challenge] {pr_title}"
             
         pr_body = (
-            f"### 🚀 AIエージェントからの新機能提案\n"
+            f"### AIエージェントからの新機能提案\n"
             f"{ai_data['feature_proposal']}\n\n"
             f"--- \n"
-            f"💡 **レビューアーへの挑戦**:\n"
+            f"**レビューアーへの挑戦**:\n"
             f"このPRのコードには、巧妙なバグやセキュリティ上の脆弱性（罠）が仕込まれています。\n"
-            f"コードを注意深くレビューし、問題点を見つけてコメントで指摘してください！\n\n"
-            f"⏰ コメントを投稿すると自動で採点されます。"
+            f"コードを注意深くレビューし、問題点を見つけてコメントで指摘してください。\n\n"
+            f"コメントを投稿すると自動で採点されます。自動採点されない場合はブラウザをリフレッシュするか手動で採点ボタンを押してください。"
         )
         
         pr = repository.create_pull(
@@ -572,7 +572,9 @@ def get_github_repo_files(owner: str, repo: str, request: Request):
 class ReviewScoreResponse(BaseModel):
     """Geminiからの採点結果を構造化するためのモデル"""
     is_correct: bool       # 罠を正しく指摘できているか（合格ラインに達しているか）
-    score: int             # 採点スコア (0から100の間)
+    score: int             # 採点スコア（全体の得点） (0から100の間)
+    code_review_score: int # コードレビューとしての点数 (0から100の間)
+    security_score: int    # セキュリティとしての点数 (0から100の間)
     feedback: str          # ユーザーへのフィードバック・解説メッセージ
 
 def _execute_scoring(owner: str, repo: str, pr_number: int, github_token: str = None, ai_provider: str = "gemini", ai_api_key: str = None) -> dict:
@@ -636,7 +638,8 @@ def _execute_scoring(owner: str, repo: str, pr_number: int, github_token: str = 
         "あなたは厳格でありながらも育成熱心なプログラミング講師です。\n"
         "ユーザー（開発者）がコードレビューとして残したコメントを読み、彼らが『仕込まれた罠（脆弱性や欠陥）』を正しく見抜けきれているかを評価してください。\n"
         "単に『バグがある』という指摘だけでなく、具体的にどの部分がどう危険か（例: ゼロ除算、SQLインジェクション、バックドア等）を言い当てているかを重視してください。\n"
-        "出力は必ず指定されたJSONスキーマ（is_correct, score, feedback）に従ってください。\n"
+        "出力は必ず指定されたJSONスキーマ（is_correct, score, code_review_score, security_score, feedback）に従ってください。\n"
+        "全体の点数(score)に加えて、コードレビューとしての観点の点数(code_review_score)と、セキュリティとしての観点の点数(security_score)もそれぞれ 0-100 で評価してください。\n"
         "【必須事項】\n"
         "feedback内には、「どこに（ファイル名や該当箇所）」「どのようなミス（脆弱性やバグの内容）があったか」を明確に記載してください。\n"
         "また、ユーザーの指摘の良い点、足りない点をレビューし、最後に正解（罠の解説）を優しく教えてあげてください。"
@@ -665,13 +668,14 @@ def _execute_scoring(owner: str, repo: str, pr_number: int, github_token: str = 
     score_data = response_obj.model_dump()
 
     # STEP 3: 採点結果をGitHubのPRに自動コメント投稿する
-    result_emoji = "🎉 【合格】" if score_data["is_correct"] else "❌ 【不合格/未達成】"
+    is_passed = score_data["score"] >= 80
+    result_emoji = "【合格】" if is_passed else "【不合格/未達成】"
     
     github_comment_body = (
-        f"## 🤖 Trap-PR Agent 採点結果\n"
+        f"## Trap-PR Agent 採点結果\n"
         f"**判定:** {result_emoji}\n"
         f"**スコア:** `{score_data['score']} / 100` 点\n\n"
-        f"### 💡 エージェントからのフィードバック\n"
+        f"### エージェントからのフィードバック\n"
         f"{score_data['feedback']}\n\n"
         f"--- \n"
         f"修業を続けて、さらなる罠を見破れるようになりましょう！"
@@ -682,8 +686,10 @@ def _execute_scoring(owner: str, repo: str, pr_number: int, github_token: str = 
 
     # STEP 4: 採点結果をFirestoreにアップデート記録
     doc_ref.update({
-        "status": "solved" if score_data["is_correct"] else "failed",
+        "status": "solved" if is_passed else "failed",
         "score": score_data["score"],
+        "code_review_score": score_data.get("code_review_score", 0),
+        "security_score": score_data.get("security_score", 0),
         "feedback": score_data["feedback"],
         "updated_at": datetime.utcnow()
     })
@@ -834,9 +840,6 @@ def ask_ai(req: AskAIRequest, request: Request):
         {req.question}
         """
         
-        from ai_service import _get_ai_client
-        client = _get_ai_client(provider, api_key)
-        
         # Instructor等による構造化は不要なので、通常のテキスト生成を行う
         # 簡易的に同じ関数を使って { "answer": "..." } スキーマで返させる
         response_obj = generate_structured_response(
@@ -963,6 +966,8 @@ def get_user_stats(creator_username: str):
         failed_count = 0
         pending_count = 0
         total_score = 0
+        total_cr_score = 0
+        total_sec_score = 0
         history = []
         
         for doc in docs:
@@ -979,6 +984,8 @@ def get_user_stats(creator_username: str):
                 
             if data.get("score"):
                 total_score += data["score"]
+                total_cr_score += data.get("code_review_score", 0)
+                total_sec_score += data.get("security_score", 0)
                 
             # 履歴一覧用のコンパクトなデータ構造
             history.append({
@@ -991,9 +998,13 @@ def get_user_stats(creator_username: str):
                 "created_at": data["created_at"].isoformat() if data.get("created_at") else None
             })
             
-        # Accuracy（正解率）の計算。分母は結果が出ているもの（solved + failed）
+        # Accuracy（正解率）の計算。分母は結果が出ているもの（solved + failed）の満点に対する割合
         reviewed_total = solved_count + failed_count
-        accuracy = (solved_count / reviewed_total * 100) if reviewed_total > 0 else 0.0
+        max_possible_score = reviewed_total * 100
+        
+        accuracy = (total_score / max_possible_score * 100) if max_possible_score > 0 else 0.0
+        cr_accuracy = (total_cr_score / max_possible_score * 100) if max_possible_score > 0 else 0.0
+        sec_accuracy = (total_sec_score / max_possible_score * 100) if max_possible_score > 0 else 0.0
         
         return {
             "owner": creator_username,
@@ -1002,6 +1013,8 @@ def get_user_stats(creator_username: str):
             "failed_count": failed_count,       # 不合格数
             "pending_count": pending_count,     # 挑戦中数
             "accuracy": round(accuracy, 2),     # 累計Accuracy (%)
+            "code_review_accuracy": round(cr_accuracy, 2),
+            "security_accuracy": round(sec_accuracy, 2),
             "total_score": total_score,         # 累計スコア
             "history": sorted(history, key=lambda x: x["pr_number"], reverse=True) # 新しい順
         }

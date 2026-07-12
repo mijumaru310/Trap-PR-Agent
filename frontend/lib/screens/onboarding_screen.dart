@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/settings_provider.dart';
+import '../providers/api_provider.dart';
 import '../main.dart';
 
 class OnboardingScreen extends ConsumerStatefulWidget {
@@ -22,15 +23,32 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
   }
 
   void _finishOnboarding() async {
-    final username = _githubUsernameController.text.trim().isEmpty 
-        ? 'mijumaru310' 
-        : _githubUsernameController.text.trim();
+    final username = _githubUsernameController.text.trim();
+    final token = _githubTokenController.text.trim();
+
+    if (username.isEmpty || token.isEmpty) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('GitHubユーザー名とトークンを入力してください')),
+        );
+      }
+      return;
+    }
+    
+    String? avatarUrl;
+    try {
+      final userInfo = await ref.read(apiServiceProvider).getGitHubUserInfo(username);
+      avatarUrl = userInfo['avatar_url'];
+    } catch (e) {
+      // 取得失敗してもそのまま進める
+    }
         
     await ref.read(settingsProvider.notifier).saveSettings(
       githubUsername: username,
-      githubToken: _githubTokenController.text.trim(),
+      githubToken: token,
       aiProvider: ref.read(settingsProvider).aiProvider,
       aiApiKey: ref.read(settingsProvider).aiApiKey,
+      githubAvatarUrl: avatarUrl,
       isOnboarded: true,
     );
 
@@ -93,7 +111,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                 controller: _githubTokenController,
                 obscureText: true,
                 decoration: InputDecoration(
-                  labelText: 'GitHub パーソナルアクセストークン (任意)',
+                  labelText: 'GitHub パーソナルアクセストークン (必須)',
                   hintText: 'ghp_...',
                   prefixIcon: const Icon(Icons.vpn_key_outlined),
                   filled: true,
@@ -109,11 +127,6 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                   padding: const EdgeInsets.symmetric(vertical: 16),
                 ),
                 child: const Text('保存して始める', style: TextStyle(fontSize: 18)),
-              ),
-              const SizedBox(height: 16),
-              TextButton(
-                onPressed: _finishOnboarding,
-                child: const Text('今はスキップする', style: TextStyle(color: Color(0xFF64748B))),
               ),
             ],
           ),
