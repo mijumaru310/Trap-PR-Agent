@@ -1,4 +1,5 @@
 from fastapi import FastAPI, HTTPException, Request, BackgroundTasks
+from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import Optional
@@ -104,9 +105,6 @@ def detect_language(file_path: str) -> str:
 # =============================================================================
 active_watchers: dict[str, bool] = {}
 
-@app.get("/")
-def read_root():
-    return {"message": "Trap-PR Agent API is running!"}
 
 @app.get("/api/v1/github/test/{owner}/{repo}")
 def test_github_connection(owner: str, repo: str):
@@ -1083,3 +1081,19 @@ def get_user_stats(creator_username: str):
         
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"統計データの取得に失敗しました: {str(e)}")
+
+# --- Frontend Serving (Catch-All) ---
+@app.get("/{catchall:path}")
+def serve_flutter_app(catchall: str):
+    if catchall.startswith("api/"):
+        raise HTTPException(status_code=404, detail="API endpoint not found")
+        
+    file_path = os.path.join("static", catchall)
+    if os.path.isfile(file_path):
+        return FileResponse(file_path)
+    
+    index_path = os.path.join("static", "index.html")
+    if os.path.isfile(index_path):
+        return FileResponse(index_path)
+    
+    return {"message": "Trap-PR Agent API is running! (Frontend build not found in static folder)"}
