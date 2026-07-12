@@ -13,8 +13,7 @@ class SettingsScreen extends ConsumerStatefulWidget {
 class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   late TextEditingController _githubUsernameController;
   late TextEditingController _githubTokenController;
-  late TextEditingController _aiApiKeyController;
-  String _selectedProvider = 'gemini';
+  String _selectedProvider = 'vertexai';
 
   @override
   void initState() {
@@ -22,14 +21,12 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     final settings = ref.read(settingsProvider);
     _githubUsernameController = TextEditingController(text: settings.githubUsername);
     _githubTokenController = TextEditingController(text: settings.githubToken);
-    _aiApiKeyController = TextEditingController(text: settings.aiApiKey);
   }
 
   @override
   void dispose() {
     _githubUsernameController.dispose();
     _githubTokenController.dispose();
-    _aiApiKeyController.dispose();
     super.dispose();
   }
 
@@ -53,8 +50,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     await ref.read(settingsProvider.notifier).saveSettings(
           githubUsername: username,
           githubToken: _githubTokenController.text.trim(),
-          aiProvider: 'gemini',
-          aiApiKey: _aiApiKeyController.text.trim(),
+          aiProvider: 'vertexai',
+          aiApiKey: '',
           githubAvatarUrl: avatarUrl,
         );
 
@@ -119,15 +116,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               label: 'GitHub パーソナルアクセストークン (必須)',
               hint: 'ghp_...',
               icon: Icons.code,
-              obscure: true,
-            ),
-            const SizedBox(height: 20),
-
-            _buildTextField(
-              controller: _aiApiKeyController,
-              label: 'Gemini API キー (任意)',
-              hint: 'Gemini APIキーを入力してください',
-              icon: Icons.vpn_key_outlined,
               obscure: true,
             ),
             const SizedBox(height: 40),

@@ -42,6 +42,22 @@ def generate_structured_response(
         )
         return response_schema.model_validate_json(response.text)
         
+    elif provider == "vertexai":
+        location = os.getenv("GCP_LOCATION", "asia-northeast1")
+        client = genai.Client(vertexai=True, location=location)
+        response = client.models.generate_content(
+            model='gemini-2.5-flash',
+            contents=user_prompt,
+            config=genai_types.GenerateContentConfig(
+                system_instruction=system_instruction,
+                response_mime_type="application/json",
+                response_schema=response_schema,
+                temperature=temperature,
+                thinking_config=genai_types.ThinkingConfig(thinking_budget=0),
+            ),
+        )
+        return response_schema.model_validate_json(response.text)
+        
     elif provider == "openai":
         client = instructor.from_openai(OpenAI(api_key=api_key))
         response = client.chat.completions.create(
@@ -82,6 +98,10 @@ def get_ai_credentials(request_headers: dict) -> tuple[str, str]:
     provider = request_headers.get("x-ai-provider", "gemini").lower()
     api_key = request_headers.get("x-ai-api-key")
     
+    if provider == "vertexai":
+        # Vertex AI uses Google Cloud ADC, no explicit API key required from frontend
+        return provider, api_key or ""
+
     if not api_key:
         if provider == "gemini":
             import random
