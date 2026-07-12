@@ -42,8 +42,17 @@ def get_github_client(request_headers: dict) -> Github:
 # Firebaseの初期化
 # 環境変数 FIREBASE_KEY_PATH があればそのパスを使用、なければデフォルトの "firebase-key.json"
 firebase_key_path = os.getenv("FIREBASE_KEY_PATH", "firebase-key.json")
+firebase_env_json = os.getenv("FIREBASE_CREDENTIALS_JSON")
 
-if os.path.exists(firebase_key_path):
+if firebase_env_json:
+    try:
+        cred_dict = json.loads(firebase_env_json)
+        cred = credentials.Certificate(cred_dict)
+        firebase_admin.initialize_app(cred)
+    except Exception as e:
+        print(f"Failed to initialize Firebase from FIREBASE_CREDENTIALS_JSON: {e}")
+        firebase_admin.initialize_app()
+elif os.path.exists(firebase_key_path):
     # Secret ManagerのボリュームマウントやローカルのJSONファイルを読み込む場合
     cred = credentials.Certificate(firebase_key_path)
     firebase_admin.initialize_app(cred)
