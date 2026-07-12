@@ -17,7 +17,7 @@ class AppSettings {
   AppSettings({
     this.githubUsername = 'mijumaru310',
     this.githubToken = '',
-    this.aiProvider = 'gemini',
+    this.aiProvider = 'vertexai',
     this.aiApiKey = '',
     this.githubAvatarUrl,
     this.isOnboarded = false,
@@ -54,7 +54,7 @@ class SettingsNotifier extends Notifier<AppSettings> {
   Future<void> _loadSettings() async {
     final username = await _storage.read(key: _keyGithubUsername) ?? 'mijumaru310';
     final token = await _storage.read(key: _keyGithubToken) ?? '';
-    final provider = await _storage.read(key: _keyAiProvider) ?? 'gemini';
+    final provider = await _storage.read(key: _keyAiProvider) ?? 'vertexai';
     final apiKey = await _storage.read(key: _keyAiApiKey) ?? '';
     final avatar = await _storage.read(key: 'github_avatar_url');
     final onboardedStr = await _storage.read(key: 'is_onboarded');
