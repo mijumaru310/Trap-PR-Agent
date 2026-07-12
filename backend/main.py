@@ -727,7 +727,11 @@ def score_review(owner: str, repo: str, pr_number: int, request: Request):
     指定されたPRのコメントを取得し、仕込まれた罠を指摘できているかをGeminiに採点させ、結果をPRにコメントする
     """
     try:
-        result = _execute_scoring(owner, repo, pr_number)
+        headers_dict = dict(request.headers)
+        github_token = headers_dict.get("x-github-token") or os.getenv("GITHUB_TOKEN")
+        ai_provider, ai_api_key = get_ai_credentials(headers_dict)
+        
+        result = _execute_scoring(owner, repo, pr_number, github_token, ai_provider, ai_api_key)
         if result is None:
             raise HTTPException(status_code=400, detail="PRにまだコメントが投稿されていません。レビューコメントを書き込んでから再度実行してください。")
         return result
@@ -801,7 +805,7 @@ def _poll_for_comments(owner: str, repo: str, pr_number: int, github_token: str,
             if has_new_comments:
                 # コメントが見つかったら採点実行
                 print(f"[Watcher] {watcher_key} - comment detected! Starting scoring...")
-                result = _execute_scoring(owner, repo, pr_number)
+                result = _execute_scoring(owner, repo, pr_number, github_token, provider, api_key)
                 print(f"[Watcher] {watcher_key} - scoring complete: {result}")
                 break  # 採点完了したら監視終了
             else:
