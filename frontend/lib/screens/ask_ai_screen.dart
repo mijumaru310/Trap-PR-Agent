@@ -22,13 +22,58 @@ class AskAIScreen extends ConsumerStatefulWidget {
 class _AskAIScreenState extends ConsumerState<AskAIScreen> {
   final TextEditingController _controller = TextEditingController();
 
-  final List<Map<String, String>> messages = [
-    {
+  final List<Map<String, String>> messages = [];
+  int? _remainingCount;
+
+  @override
+  void initState() {
+    super.initState();
+    messages.add({
       "role": "ai",
-      "text":
-          "こんにちは！Trap Assistantです。\n現在の罠PR（${"#"}{{widget.prNumber}}）について、何かヒントや質問があればどうぞ！",
-    },
-  ];
+      "text": "こんにちは！Trap Assistantです。\n現在の罠PR（#${widget.prNumber}）について、何かヒントや質問があればどうぞ！\n(※質問は1つのPRにつき3回まで可能です)",
+    });
+    
+    // Future.microtask is used to call ref.read safely after initState
+    Future.microtask(() => _loadHistory());
+  }
+
+  Future<void> _loadHistory() async {
+    setState(() {
+      _isLoading = true;
+    });
+    try {
+      final apiService = ref.read(apiServiceProvider);
+      final response = await apiService.getAskAIHistory(
+        widget.owner,
+        widget.repo,
+        widget.prNumber,
+      );
+      if (mounted) {
+        setState(() {
+          _remainingCount = response['remaining_count'] as int?;
+          final history = response['messages'] as List<dynamic>? ?? [];
+          for (var msg in history) {
+            messages.add({
+              "role": msg["role"] as String,
+              "text": msg["text"] as String,
+            });
+          }
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('履歴の取得に失敗しました: $e')),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
+  }
   
   bool _isLoading = false;
 
@@ -54,6 +99,7 @@ class _AskAIScreenState extends ConsumerState<AskAIScreen> {
 
       if (mounted) {
         setState(() {
+          _remainingCount = response['remaining_count'] as int?;
           messages.add({
             "role": "ai",
             "text": response['answer'] ?? '回答を取得できませんでした。',
@@ -115,7 +161,13 @@ class _AskAIScreenState extends ConsumerState<AskAIScreen> {
     return Scaffold(
       backgroundColor: const Color(0xFFFAFAFA),
       appBar: AppBar(
-        title: const Text("AIに質問する", style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
+        title: Column(
+          children: [
+            const Text("AIに質問する", style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
+            if (_remainingCount != null)
+              Text("残り $_remainingCount 回", style: const TextStyle(fontSize: 12, color: Colors.grey)),
+          ],
+        ),
         centerTitle: true,
       ),
       body: Column(
@@ -147,7 +199,7 @@ class _AskAIScreenState extends ConsumerState<AskAIScreen> {
                   Expanded(
                     child: TextField(
                       controller: _controller,
-                      enabled: !_isLoading,
+                      enabled: !_isLoading && (_remainingCount == null || _remainingCount! > 0),
                       decoration: InputDecoration(
                         hintText: "罠のヒントを教えて...",
                         hintStyle: const TextStyle(color: Color(0xFF94A3B8)),
