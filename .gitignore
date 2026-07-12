@@ -21,3 +21,6 @@ frontend/macos/Pods/
 # OS files
 .DS_Store
 Thumbs.db
+
+# 統合ビルド用
+!backend/static/**/*.json
