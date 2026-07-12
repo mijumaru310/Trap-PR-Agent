@@ -18,6 +18,8 @@ class ProfileScreen extends ConsumerWidget {
           final int totalGenerated = data['total_generated_prs'] ?? 0;
           final int solvedCount = data['solved_count'] ?? 0;
           final double accuracy = (data['accuracy'] ?? 0).toDouble();
+          final double crAccuracy = (data['code_review_accuracy'] ?? 0).toDouble();
+          final double secAccuracy = (data['security_accuracy'] ?? 0).toDouble();
 
           final int totalScore = data['total_score'] ?? 0;
 
@@ -98,8 +100,8 @@ class ProfileScreen extends ConsumerWidget {
                 style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800, letterSpacing: -0.5, color: Color(0xFF0F172A)),
               ),
               const SizedBox(height: 16),
-              skillTile("コードレビュー", accuracy.toInt(), const Color(0xFF10B981)),
-              skillTile("セキュリティ", (accuracy * 0.9).toInt(), const Color(0xFF0052FF)),
+              skillTile("コードレビュー", crAccuracy.toInt(), const Color(0xFF10B981)),
+              skillTile("セキュリティ", secAccuracy.toInt(), const Color(0xFF0052FF)),
             ],
           );
         },

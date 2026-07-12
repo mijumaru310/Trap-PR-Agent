@@ -23,7 +23,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     _githubUsernameController = TextEditingController(text: settings.githubUsername);
     _githubTokenController = TextEditingController(text: settings.githubToken);
     _aiApiKeyController = TextEditingController(text: settings.aiApiKey);
-    _selectedProvider = settings.aiProvider;
   }
 
   @override
@@ -54,7 +53,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     await ref.read(settingsProvider.notifier).saveSettings(
           githubUsername: username,
           githubToken: _githubTokenController.text.trim(),
-          aiProvider: _selectedProvider,
+          aiProvider: 'gemini',
           aiApiKey: _aiApiKeyController.text.trim(),
           githubAvatarUrl: avatarUrl,
         );
@@ -117,42 +116,17 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             const SizedBox(height: 20),
             _buildTextField(
               controller: _githubTokenController,
-              label: 'GitHub パーソナルアクセストークン (任意)',
+              label: 'GitHub パーソナルアクセストークン (必須)',
               hint: 'ghp_...',
               icon: Icons.code,
               obscure: true,
             ),
             const SizedBox(height: 20),
-            DropdownButtonFormField<String>(
-              value: _selectedProvider,
-              decoration: InputDecoration(
-                labelText: 'AI プロバイダ',
-                labelStyle: const TextStyle(fontWeight: FontWeight.w600, color: Color(0xFF64748B)),
-                filled: true,
-                fillColor: Colors.white,
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFFE2E8F0))),
-                enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFFE2E8F0))),
-                focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFF0052FF), width: 2)),
-                prefixIcon: const Icon(Icons.smart_toy_outlined, color: Color(0xFF64748B)),
-              ),
-              items: const [
-                DropdownMenuItem(value: 'gemini', child: Text('Google Gemini (gemini-2.5-flash)')),
-                DropdownMenuItem(value: 'openai', child: Text('OpenAI (gpt-4o)')),
-                DropdownMenuItem(value: 'anthropic', child: Text('Anthropic (claude-3-5-sonnet)')),
-              ],
-              onChanged: (val) {
-                if (val != null) {
-                  setState(() {
-                    _selectedProvider = val;
-                  });
-                }
-              },
-            ),
-            const SizedBox(height: 20),
+
             _buildTextField(
               controller: _aiApiKeyController,
-              label: 'AI API キー (任意)',
-              hint: '選択したプロバイダのAPIキー',
+              label: 'Gemini API キー (任意)',
+              hint: 'Gemini APIキーを入力してください',
               icon: Icons.vpn_key_outlined,
               obscure: true,
             ),
