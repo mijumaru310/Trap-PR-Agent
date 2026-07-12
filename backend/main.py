@@ -672,9 +672,6 @@ def _execute_scoring(owner: str, repo: str, pr_number: int, github_token: str = 
     {user_reviews_text}
     """
 
-    # フォールバック処理
-    if not ai_api_key:
-        ai_provider, ai_api_key = get_ai_credentials({})
 
     response_obj = generate_structured_response(
         provider=ai_provider,
